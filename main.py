@@ -32,19 +32,19 @@ def login(body: LoginRequest):
         gh_token = gh_token_data["token"]
         gh_expires_at = gh_token_data["expires_at"]
 
-        # Step 3: issue short-lived session token
-        # session = issue_token_for_user(
-        #     user_email=body.email,
-        #     gh_token=gh_token,
-        #     gh_expires_at=gh_expires_at,
-        # )
+        Step 3: issue short-lived session token
+        session = issue_token_for_user(
+            user_email=body.email,
+            gh_token=gh_token,
+            gh_expires_at=gh_expires_at,
+        )
 
         return LoginResponse(
             status="ok",
             # token=session["token"],
             token=gh_token,
-            # expires_in=session["expires_in"],
-            expires_in=gh_expires_at,
+            expires_in=session["expires_in"],
+            # expires_in=gh_expires_at,
         )
 
     except HTTPException:
