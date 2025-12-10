@@ -30,11 +30,12 @@ def issue_token_for_user(user_email: str,
 
     with _lock:
         store = _load_store()
-        # Revoke existing token(s) for this user
+
+        # revoke existing token(s) for this user
         for t in store.values():
             if t.get("user") == user_email:
                 t["revoked"] = True
-        # Create new entry
+
         store[short_token] = {
             "user": user_email,
             "issued_at": now,
