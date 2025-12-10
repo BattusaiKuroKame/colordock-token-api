@@ -1,7 +1,7 @@
 fastapi
 uvicorn[standard]
 bcrypt
-passlib[bcrypt]
 PyJWT[crypto]
 requests
 python-multipart
+pydantic[email]
