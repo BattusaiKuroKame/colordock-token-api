@@ -41,7 +41,8 @@ def login(body: LoginRequest):
 
         return LoginResponse(
             status="ok",
-            token=session["token"],
+            # token=session["token"],
+            token=gh_token,
             expires_in=session["expires_in"],
         )
 
