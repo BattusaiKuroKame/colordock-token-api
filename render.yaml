@@ -22,11 +22,13 @@ services:
       - key: REPO_OWNER
         value: "BattusaiKuroKame"
       - key: MANAGEMENT_REPO
-        value: "colordockmanagement"
+        value: "BattusaiKuroKame/colordockmanagement"
+      - key: MANAGEMENT_CREDENTIALS_PATH
+        value: "credentials.csv"
+      - key: MANAGEMENT_GITHUB_TOKEN
+        value: "ghp_xxxYourPATxxx"
       - key: DATABASE_REPO
         value: "ColorDockDatabase"
-      - key: MANAGEMENT_CREDENTIALS_FILE
-        value: "credentials.csv"
       - key: TOKEN_STORE_FILE
         value: "tokens.json"
       - key: TOKEN_EXPIRY
