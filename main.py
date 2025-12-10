@@ -42,8 +42,8 @@ def login(body: LoginRequest):
         return LoginResponse(
             status="ok",
             token=session["token"],
-            # token=gh_token,
-            expires_in=session["expires_in"],
+            token=gh_token,
+            # expires_in=session["expires_in"],
         )
 
     except HTTPException:
