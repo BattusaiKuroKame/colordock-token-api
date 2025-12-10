@@ -10,7 +10,6 @@ from storage import issue_token_for_user
 
 TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
 
-# 1) Define app FIRST
 app = FastAPI(title="GitHub Token API")
 
 app.add_middleware(
@@ -21,15 +20,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2) Then add routes
 @app.post("/login", response_model=LoginResponse)
 def login(body: LoginRequest):
     try:
-        # Step 1: verify credentials
+        # Step 1: verify credentials (live from management repo)
         if not verify_user(body.email, body.password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
 
-        # Step 2: get GitHub installation token
+        # Step 2: get GitHub installation token for DATABASE_REPO
         gh_token_data = generate_installation_token()
         gh_token = gh_token_data["token"]
         gh_expires_at = gh_token_data["expires_at"]
@@ -50,7 +48,6 @@ def login(body: LoginRequest):
     except HTTPException:
         raise
     except Exception as e:
-        # TEMP: log error for debugging in Render logs
         print("LOGIN ERROR:", repr(e))
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
