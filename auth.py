@@ -1,7 +1,8 @@
+# auth.py
 import csv
 import os
 from typing import Optional
-from passlib.hash import bcrypt
+import bcrypt
 
 MANAGEMENT_CREDENTIALS_FILE = os.getenv("MANAGEMENT_CREDENTIALS_FILE", "credentials.csv")
 
@@ -22,10 +23,21 @@ def load_credentials() -> dict[str, str]:
 _CACHED_CREDS: dict[str, str] | None = None
 
 def verify_user(email: str, password: str) -> bool:
+    """Verify plain password against bcrypt hash from CSV."""
     global _CACHED_CREDS
     if _CACHED_CREDS is None:
         _CACHED_CREDS = load_credentials()
+
     pw_hash: Optional[str] = _CACHED_CREDS.get(email.lower())
     if not pw_hash:
         return False
-    return bcrypt.verify(password, pw_hash)
+
+    # bcrypt only considers first 72 bytes, so truncate to avoid ValueError
+    pwd_bytes = password.encode("utf-8")[:72]
+    hash_bytes = pw_hash.encode("utf-8")
+
+    try:
+        return bcrypt.checkpw(pwd_bytes, hash_bytes)
+    except ValueError:
+        # Malformed hash → treat as invalid credentials
+        return False
