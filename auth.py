@@ -49,7 +49,7 @@ def load_credentials() -> Dict[str, str]:
 
 _CACHED_CREDS: Dict[str, str] | None = None
 _CACHE_TIME: float = 0
-_CACHE_TTL = 300  # 5 minutes
+_CACHE_TTL =  5# 300  # 5 minutes
 
 def verify_user(email: str, password: str) -> bool:
     """Fetch latest creds from management repo and verify."""
