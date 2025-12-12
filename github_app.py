@@ -9,12 +9,10 @@ GITHUB_APP_ID = os.getenv("GITHUB_APP_ID")
 GITHUB_PRIVATE_KEY = os.getenv("GITHUB_PRIVATE_KEY")
 INSTALLATION_ID = os.getenv("INSTALLATION_ID")
 GITHUB_API_URL = "https://api.github.com"
-# TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
+TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
 
 def _build_app_jwt() -> str:
     now = int(time.time())
-    TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
-    print('token expiry:', TOKEN_EXPIRY)
     payload = {
         "iat": now - 60,
         "exp": now + TOKEN_EXPIRY,
