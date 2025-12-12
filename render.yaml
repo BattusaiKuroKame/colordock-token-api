@@ -32,4 +32,4 @@ services:
       - key: TOKEN_STORE_FILE
         value: "tokens.json"
       - key: TOKEN_EXPIRY
-        value: "300"
+        value: "300" #5 min
