@@ -22,7 +22,7 @@ jobs:
           pip install -r requirements.txt pytest
       
       - name: Run tests
-        run: pytest tests/  # Add tests/ folder or adjust
+        run: pytest  # or pytest tests/
 
   deploy:
     needs: test
@@ -32,4 +32,4 @@ jobs:
       - uses: actions/checkout@v4
       
       - name: Trigger Render Deploy
-        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
