@@ -88,6 +88,13 @@ async def punch_in(request: PunchRequest):
     
     # Remove old entry for this IP:port
     rooms[room_id] = [p for p in rooms[room_id] if f"{p['ip']}:{p['port']}" != f"{request.ip}:{request.port}"]
+
+    # Add to punch_in endpoint:
+    if request.waiting:
+        # Remove waiting players from ready count
+        ready_players = [p for p in rooms[room_id] if p["ready"]]
+        response["ready_count"] = len(ready_players)
+
     
     # Add new entry
     player = {
