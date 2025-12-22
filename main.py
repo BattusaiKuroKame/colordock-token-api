@@ -122,13 +122,21 @@ async def punch_in(request: PunchRequest):
                 return response
     
     # Still waiting
-    return {
-        "status": "WAITING",
-        "room": room_id,
-        "players": len(rooms[room_id]),
-        "your_addr": f"{request.ip}:{request.port}",
-        "ready_count": len([p for p in rooms[room_id] if p["ready"]])
-    }
+    print(f"[{room_id}] PUNCH: {request.ip}:{request.port} → targets: {targets}")
+    
+    for i, player in enumerate(rooms[room_id]):
+        targets = [p for j, p in enumerate(rooms[room_id]) if j != i]
+        response = {
+            "status": "PUNCH" if player["ready"] else "WAITING",
+            "room": room_id,
+            "your_addr": f"{player['ip']}:{player['port']}",
+            "targets": [{"ip": t["ip"], "port": t["port"]} for t in targets],
+            "total_players": len(rooms[room_id])
+        }
+        print(f"[{room_id}] Sent {player['ip']}:{player['port']} → {len(targets)} targets")
+        
+        if player["ready"]:
+            return response  # Only ready players get PUNCH
 
 @app.get("/room/{room_id}")
 async def get_room(room_id: str):
