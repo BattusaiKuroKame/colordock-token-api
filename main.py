@@ -15,13 +15,6 @@ import json
 import time
 from datetime import datetime, timedelta
 
-# server.py
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse
-from typing import Dict, List, Tuple
-import uvicorn
-import os
-
 TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
 
 app = FastAPI(title="GitHub Token API")
@@ -86,39 +79,6 @@ async def root():
     }
 
 # multiplayer stuff
-
-
-
-# In-memory rooms storage
-# In-memory storage (production: Redis)
-rooms: Dict[str, List[Dict]] = {}
-room_cleanup_time = 300  # 5min inactive → cleanup
-
-connected_clients: Dict[str, WebSocket] = {}
-match_queue: List[Tuple[str, str]] = []  # (client_id, public_endpoint)
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    client_id = f"client_{len(connected_clients)}"
-    connected_clients[client_id] = websocket
-    
-    try:
-        # Get client's public endpoint (from WebSocket peer info or STUN)
-        data = await websocket.receive_text()
-        endpoint = parse_endpoint(data)  # Implement STUN-like public IP:port detection
-        match_queue.append((client_id, endpoint))
-        await websocket.send_text(f"ID: {client_id}")
-        
-        while True:
-            data = await websocket.receive_text()
-            if len(match_queue) >= 2:
-                peer1, peer2 = match_queue.pop(0), match_queue.pop(0)
-                await connected_clients[peer1[0]].send_text(f'{{"type":"match","peer_endpoint":"{peer2[1]}"}}')
-                await connected_clients[peer2[0]].send_text(f'{{"type":"match","peer_endpoint":"{peer1[1]}"}}')
-                
-    except WebSocketDisconnect:
-        connected_clients.pop(client_id, None)
 
 # if __name__ == "__main__":
 #     import uvicorn
