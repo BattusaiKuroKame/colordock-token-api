@@ -161,7 +161,6 @@ async def punch_in(request: PunchRequest):
                     "status": "PUNCH",
                     "room": room_id,
                     "your_addr": addr,
-                    "players": total_players,
                     "ready_count": ready_count,
                     "targets": target_list,
                     "total_players": total_players
@@ -173,8 +172,9 @@ async def punch_in(request: PunchRequest):
         "status": "WAITING",
         "room": room_id,
         "your_addr": addr,
-        "players": total_players,
-        "ready_count": ready_count
+        "ready_count": ready_count,
+        "targets": target_list,
+        "total_players": total_players
     }
     return response
 
