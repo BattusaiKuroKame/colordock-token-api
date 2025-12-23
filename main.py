@@ -101,7 +101,7 @@ class RoomResponse(BaseModel):
     your_addr: str
     players: int
     ready_count: int
-    targets: Optional[List[Dict[str, int]]] = None
+    targets: Optional[List[Dict]] = None
     total_players: Optional[int] = None
 
 @app.post("/punch_in", response_model=RoomResponse)
