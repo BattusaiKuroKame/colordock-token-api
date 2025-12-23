@@ -101,6 +101,13 @@ async def websocket_endpoint(websocket: WebSocket):
                 
             elif msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
+
+            elif msg.get("type") == "ready_toggle":
+                await handle_ready_toggle(client_id, websocket, msg.get("ready", True))
+                
+            elif msg.get("type") == "status":
+                room_id = player_states[client_id]["room"]
+                await broadcast_room_status(room_id)
                 
     except WebSocketDisconnect:
         print(f"🔌 {client_id} disconnected")
@@ -108,6 +115,11 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WS Error {client_id}: {e}")
     finally:
         cleanup_client(client_id)
+
+async def handle_ready_toggle(client_id: str, websocket: WebSocket, ready_state: bool):
+    player_states[client_id]["ready"] = ready_state
+    await websocket.send_text(json.dumps({"type": "state_ack", "ready": ready_state}))
+    await check_room_ready(player_states[client_id]["room"])
 
 async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
