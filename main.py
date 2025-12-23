@@ -86,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket):
     connected_clients[client_id] = websocket
     client_ip = websocket.client.host
     
-    print(f"New connection: {client_id} from {client_ip}")
+    print(f"🔌 New WS: {client_id} from {client_ip}")
     
     try:
         while client_id in connected_clients:
@@ -103,18 +103,18 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "pong"}))
                 
     except WebSocketDisconnect:
-        print(f"Client {client_id} disconnected")
+        print(f"🔌 {client_id} disconnected")
     except Exception as e:
         print(f"WS Error {client_id}: {e}")
     finally:
         cleanup_client(client_id)
 
 async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
-    """Handle client joining a room"""
+    """PHASE 1: Handle initial join (immediate ACK)"""
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     
-    # Store player state
+    # Store state
     player_states[client_id] = {
         "room": room_id,
         "ready": False,
@@ -126,50 +126,62 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
         rooms[room_id] = []
     rooms[room_id].append(client_id)
     
+    # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
     await websocket.send_text(json.dumps({
         "type": "joined",
         "id": client_id,
         "room": room_id,
-        "players_needed": 2,
+        "players_needed": 2,  # Configurable
         "current_players": len(rooms[room_id])
     }))
     
-    print(f"Player {client_id} joined {room_id} ({len(rooms[room_id])}/{2})")
+    # Notify others + broadcast status
+    await notify_player_joined(room_id, client_id)
     await broadcast_room_status(room_id)
+    
+    print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
 
 async def handle_ready(client_id: str, websocket: WebSocket):
-    """Handle client ready signal"""
+    """PHASE 2: Handle ready signal (background WS)"""
     if client_id not in player_states:
         return
         
     player_states[client_id]["ready"] = True
     room_id = player_states[client_id]["room"]
     
-    print(f"Player {client_id} READY in {room_id}")
-    await websocket.send_text(json.dumps({"type": "ready_ack", "status": "ready"}))
+    # ACK to sender
+    await websocket.send_text(json.dumps({
+        "type": "ready_ack", 
+        "status": "ready"
+    }))
+    
+    # Check if room is ready
     await check_room_ready(room_id)
+    
+    print(f"🟢 {client_id} READY in {room_id}")
 
 async def check_room_ready(room_id: str):
-    """Check if ALL players in room are ready"""
+    """Check if room ready → PHASE 3 PUNCHNOW!"""
     room_clients = rooms.get(room_id, [])
     if len(room_clients) < 2:
+        await broadcast_room_status(room_id)
         return
         
     ready_count = sum(1 for cid in room_clients 
-                     if cid in player_states and player_states[cid].get("ready"))
+                     if cid in player_states and player_states[cid]["ready"])
     
     await broadcast_room_status(room_id)
     
-    # ALL READY? PUNCHNOW!
+    # ALL READY → PUNCHNOW!
     if ready_count == len(room_clients):
-        print(f"🚀 {room_id}: ALL {len(room_clients)} READY! Sending PUNCHNOW")
+        print(f"🚀 {room_id}: {ready_count}/{len(room_clients)} READY → PUNCHNOW!")
         await punch_all_players(room_id)
 
 async def broadcast_room_status(room_id: str):
-    """Broadcast room status to all players"""
+    """Broadcast status to entire room"""
     room_clients = rooms.get(room_id, [])
     ready_count = sum(1 for cid in room_clients 
-                     if cid in player_states and player_states[cid].get("ready"))
+                     if cid in player_states and player_states[cid]["ready"])
     
     status_msg = {
         "type": "room_status",
@@ -181,44 +193,48 @@ async def broadcast_room_status(room_id: str):
     
     for client_id in room_clients:
         if client_id in connected_clients:
-            await connected_clients[client_id].send_text(json.dumps(status_msg))
+            try:
+                await connected_clients[client_id].send_text(json.dumps(status_msg))
+            except:
+                pass
 
 async def punch_all_players(room_id: str):
-    """Send ALL players' endpoints to EVERYONE"""
+    """PHASE 3: Send PUNCHNOW to ALL ready players"""
     room_clients = rooms.get(room_id, [])
     ready_clients = [cid for cid in room_clients 
-                    if cid in player_states and player_states[cid].get("ready")]
+                    if cid in player_states and player_states[cid]["ready"]]
     
     if len(ready_clients) < 2:
         return
         
-    # Build complete peer list for each player
+    print(f"🎮 Sending PUNCHNOW to {len(ready_clients)} players...")
+    
+    # Each player gets ALL other players' endpoints
     for client_id in ready_clients:
         peers = []
         for other_id in ready_clients:
-            if other_id != client_id:  # Not self
+            if other_id != client_id:
                 peers.append({
                     "id": other_id,
                     "endpoint": player_states[other_id]["endpoint"]
                 })
         
-        # Send FULL peer list!
         try:
             await connected_clients[client_id].send_text(json.dumps({
                 "type": "PUNCHNOW",
                 "room": room_id,
-                "peers": peers,  # Array of ALL other players
+                "peers": peers,
                 "total_players": len(ready_clients)
             }))
-            print(f"🚀 {client_id} gets {len(peers)} peers")
-        except:
-            pass
-# Add this helper function
+            print(f"🚀 {client_id} ← {len(peers)} peers")
+        except Exception as e:
+            print(f"❌ Failed PUNCHNOW {client_id}: {e}")
+
 async def notify_player_joined(room_id: str, new_client_id: str):
-    """Notify ALL players about new joiner + send existing to new player"""
+    """Notify room about new joiner"""
     room_clients = rooms.get(room_id, [])
     
-    # 1. Tell EXISTING players about NEW player
+    # Existing players ← New player joined
     new_player_info = {
         "type": "player_joined",
         "player": {
@@ -233,11 +249,10 @@ async def notify_player_joined(room_id: str, new_client_id: str):
         if existing_id != new_client_id and existing_id in connected_clients:
             try:
                 await connected_clients[existing_id].send_text(json.dumps(new_player_info))
-                print(f"📢 {existing_id} notified: {new_client_id} joined")
             except:
                 pass
     
-    # 2. Tell NEW player about EXISTING players
+    # New player ← Existing players
     existing_players = []
     for existing_id in room_clients:
         if existing_id != new_client_id and existing_id in player_states:
@@ -251,75 +266,42 @@ async def notify_player_joined(room_id: str, new_client_id: str):
         "type": "welcome_existing",
         "room": room_id,
         "existing_players": existing_players,
-        "message": f"Welcome! {len(existing_players)} players already here"
+        "message": f"Welcome to {room_id}! {len(existing_players)} already here"
     }
     
     try:
         await connected_clients[new_client_id].send_text(json.dumps(welcome_msg))
-        print(f"👋 {new_client_id} welcomed with {len(existing_players)} existing")
     except:
         pass
 
-# Update handle_join function
-async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
-    """Handle client joining a room"""
-    room_id = msg.get("room", "default")
-    endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
-    
-    # Store player state
-    player_states[client_id] = {
-        "room": room_id,
-        "ready": False,
-        "endpoint": endpoint
-    }
-    
-    # Add to room
-    if room_id not in rooms:
-        rooms[room_id] = []
-    rooms[room_id].append(client_id)
-    
-    # 🔥 NEW: Notify everyone about join!
-    await notify_player_joined(room_id, client_id)
-    
-    await websocket.send_text(json.dumps({
-        "type": "joined",
-        "id": client_id,
-        "room": room_id,
-        "players_needed": 2,
-        "current_players": len(rooms[room_id])
-    }))
-    
-    print(f"Player {client_id} joined {room_id} ({len(rooms[room_id])}/{2})")
-    await broadcast_room_status(room_id)
-
-
-
 def cleanup_client(client_id: str):
-    """Remove disconnected client from all state"""
+    """Clean up disconnected client"""
     if client_id in connected_clients:
         connected_clients.pop(client_id, None)
     if client_id in player_states:
         player_states.pop(client_id, None)
     
-    # Remove from all rooms
+    # Remove from rooms
     for room_id, client_ids in list(rooms.items()):
         if client_id in client_ids:
             client_ids.remove(client_id)
             if not client_ids:
                 del rooms[room_id]
             else:
+                # Recheck room readiness
                 asyncio.create_task(check_room_ready(room_id))
 
 @app.get("/rooms")
 async def list_rooms():
-    """Debug endpoint"""
+    """Debug: Room status"""
     room_status = {}
     for room_id, clients in rooms.items():
         ready_count = sum(1 for cid in clients 
-                         if cid in player_states and player_states[cid].get("ready"))
+                         if cid in player_states and player_states[cid]["ready"])
         room_status[room_id] = {
             "players": len(clients),
-            "ready": ready_count
+            "ready": ready_count,
+            "client_ids": clients[:3]  # First 3 for preview
         }
     return {"rooms": room_status}
 
@@ -327,49 +309,25 @@ async def list_rooms():
 async def test_page():
     html = """
     <!DOCTYPE html>
-    <html>
-    <body>
-        <h1>UDP Ready-State Matchmaking Test</h1>
-        <input id="room" placeholder="Room ID" value="testroom">
-        <button onclick="joinRoom()">Join Room</button>
-        <button onclick="setReady()" id="readyBtn" disabled>READY ✓</button>
+    <html><body>
+        <h1>P2P 3-Phase Test</h1>
+        <input id="room" placeholder="Room" value="testroom">
+        <button onclick="join()">Join</button>
+        <button onclick="ready()" id="readyBtn" disabled>READY</button>
         <pre id="log"></pre>
         <script>
         const ws = new WebSocket(`wss://${location.host}/ws`);
-        let clientId, roomId;
-        
-        ws.onmessage = (event) => {
-            const data = JSON.parse(event.data);
+        ws.onmessage = e => {
+            const data = JSON.parse(e.data);
             log(data);
-            if (data.type === 'PUNCHNOW') {
-                log(`🎮 P2P CONNECTED! Punching to ${data.peer_endpoint}`);
-                document.getElementById('readyBtn').disabled = true;
-            } else if (data.type === 'joined') {
-                clientId = data.id; roomId = data.room;
-                document.getElementById('readyBtn').disabled = false;
-            } else if (data.type === 'room_status' && data.all_ready) {
-                log('🎉 ALL READY - PUNCHNOW incoming!');
-            }
+            if(data.type === 'joined') document.getElementById('readyBtn').disabled = false;
+            if(data.type === 'PUNCHNOW') log('🎮 P2P READY!');
         };
-        
-        function joinRoom() {
-            roomId = document.getElementById('room').value;
-            ws.send(JSON.stringify({type: 'join', room: roomId, local_port: 54500}));
-        }
-        
-        function setReady() {
-            ws.send(JSON.stringify({type: 'ready'}));
-            document.getElementById('readyBtn').innerText = 'READY ✓';
-            document.getElementById('readyBtn').disabled = true;
-        }
-        
-        function log(msg) { 
-            document.getElementById('log').textContent += 
-                new Date().toLocaleTimeString() + ' ' + JSON.stringify(msg) + '\\n'; 
-        }
+        function join() { ws.send(JSON.stringify({type:'join', room:document.getElementById('room').value, local_port:54500})); }
+        function ready() { ws.send(JSON.stringify({type:'ready'})); document.getElementById('readyBtn').disabled=true; }
+        function log(msg) { document.getElementById('log').textContent += new Date().toLocaleTimeString() + ' ' + JSON.stringify(msg) + '\\n'; }
         </script>
-    </body>
-    </html>
+    </body></html>
     """
     return HTMLResponse(html)
 
