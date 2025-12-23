@@ -137,27 +137,17 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     print(f"Player {client_id} joined {room_id} ({len(rooms[room_id])}/{2})")
     await broadcast_room_status(room_id)
 
-async def handle_ready(client_id: str, websocket: WebSocket, ready_state: bool):
-    """Toggle ready/wait state"""
+async def handle_ready(client_id: str, websocket: WebSocket):
+    """Handle client ready signal"""
     if client_id not in player_states:
         return
         
-    player_states[client_id]["ready"] = ready_state
+    player_states[client_id]["ready"] = True
     room_id = player_states[client_id]["room"]
     
-    status = "ready" if ready_state else "waiting"
-    
-    # Send ACK to player who toggled
-    await websocket.send_text(json.dumps({
-        "type": "ready_ack", 
-        "status": status
-    }))
-    
-    # 🔥 FIX: BROADCAST room_status to ALL players in room
-    await broadcast_room_status(room_id)  # This was missing!
-    
-    print(f"Player {client_id} → {status} in {room_id}")
-
+    print(f"Player {client_id} READY in {room_id}")
+    await websocket.send_text(json.dumps({"type": "ready_ack", "status": "ready"}))
+    await check_room_ready(room_id)
 
 async def check_room_ready(room_id: str):
     """Check if ALL players in room are ready"""
