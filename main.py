@@ -1,6 +1,6 @@
 import os
 import traceback
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from models import LoginRequest, LoginResponse
@@ -104,10 +104,12 @@ class RoomResponse(BaseModel):
     targets: Optional[List[Dict]] = None
 
 @app.post("/punch_in", response_model=RoomResponse)
-async def punch_in(request: PunchRequest):
+async def punch_in(request: PunchRequest, raw_request = Request):
+
+    client_ip = raw_request.headers.get("x-forwarded-for", "").split(",")[0].strip()
 
     room_id = request.room
-    addr = f"{request.ip}:{request.port}"
+    addr = f"{client_ip}:{request.port}"
 
     print(f'Request from {addr} for room {room_id}')
     
