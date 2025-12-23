@@ -75,7 +75,7 @@ async def root():
             "GET /room/{room_id}": "Room status",
             "DELETE /room/{room_id}": "Clear room"
         },
-        "rooms": len(rooms)
+        "rooms": "None"
     }
 
 # multiplayer stuff
