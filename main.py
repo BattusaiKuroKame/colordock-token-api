@@ -120,7 +120,7 @@ async def websocket_endpoint(websocket: WebSocket):
             "position": len(rooms[room_id]),  # Current position
             "total_in_room": len(rooms[room_id]),  # Total players in room
             "endpoint": endpoint
-        })
+        }))
         
         print(f"Player {client_id} joined room {room_id} (total: {len(rooms[room_id])})")
         
