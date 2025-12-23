@@ -86,7 +86,7 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     client_id = f"client_{len(connected_clients) + 1}_{int(time.time())}"
     connected_clients[client_id] = websocket
-    client_ip = websocket.client.host  # Server sees public IP
+    client_ip = websocket.client.host
     
     await websocket.send_text(json.dumps({
         "type": "welcome", 
@@ -95,7 +95,7 @@ async def websocket_endpoint(websocket: WebSocket):
     }))
     
     try:
-        # Wait for player info (room, port)
+        # Wait for JOIN message
         data = await websocket.receive_text()
         player_info = json.loads(data)
         
@@ -106,66 +106,81 @@ async def websocket_endpoint(websocket: WebSocket):
         room_id = player_info.get("room", "default")
         endpoint = f"{client_ip}:{player_info.get('local_port', 54500)}"
         
-        # Add to room queue
+        # Initialize room if needed
         if room_id not in rooms:
             rooms[room_id] = []
+        
+        # Add to room AND queue
         rooms[room_id].append(client_id)
         match_queue.append((client_id, endpoint))
         
         await websocket.send_text(json.dumps({
             "type": "queued",
             "room": room_id,
-            "position": len(rooms[room_id])
+            "position": len(rooms[room_id]),
+            "endpoint": endpoint  # Send back their own public endpoint
         }))
         
-        # Matchmake: pair when room has 2+ players
-        if len(rooms[room_id]) >= 2:
-            await match_players(room_id, client_id)
+        print(f"Player {client_id} joined room {room_id} (total: {len(rooms[room_id])})")
         
-        # Keep alive loop
-        while True:
+        # === FIXED: Continuous matchmaking loop ===
+        while client_id in connected_clients:
+            # Check if room has 2+ players
+            if room_id in rooms and len(rooms[room_id]) >= 2:
+                await match_players(room_id)
+                break  # Matchmade, exit loop
+            
+            # Heartbeat: wait but send ping to keep alive
             try:
-                await websocket.receive_text(timeout=30)  # Heartbeat
+                await websocket.receive_text(timeout=5)
             except:
-                break
+                # No message? Send ping to keep connection alive
+                await websocket.send_text(json.dumps({"type": "ping"}))
+                await asyncio.sleep(1)
                 
     except WebSocketDisconnect:
-        cleanup_client(client_id)
+        print(f"Client {client_id} disconnected")
     except Exception as e:
         print(f"WS Error {client_id}: {e}")
+    finally:
         cleanup_client(client_id)
 
-async def match_players(room_id: str, initiator_id: str):
-    """Pair players in room and exchange endpoints"""
+async def match_players(room_id: str):
+    """Match ALL players in room (2 at a time)"""
     room_clients = rooms.get(room_id, [])
     if len(room_clients) < 2:
         return
         
-    # Take first 2 players
-    peer1_id = room_clients.pop(0)
-    peer2_id = room_clients.pop(0)
+    print(f"Matchmaking room {room_id}: {len(room_clients)} players")
     
-    # Remove from global queue too
-    global match_queue
-    match_queue = [(cid, ep) for cid, ep in match_queue if cid not in (peer1_id, peer2_id)]
+    # Pair them up
+    while len(room_clients) >= 2:
+        peer1_id = room_clients.pop(0)
+        peer2_id = room_clients.pop(0)
+        
+        # Get endpoints from queue
+        peer1_endpoint = next((ep for cid, ep in match_queue if cid == peer1_id), f"{websocket.client.host}:54500")
+        peer2_endpoint = next((ep for cid, ep in match_queue if cid == peer2_id), f"{websocket.client.host}:54500")
+        
+        try:
+            # Send match to both
+            await connected_clients[peer1_id].send_text(json.dumps({
+                "type": "match",
+                "peer_endpoint": peer2_endpoint,
+                "room": room_id
+            }))
+            await connected_clients[peer2_id].send_text(json.dumps({
+                "type": "match",
+                "peer_endpoint": peer1_endpoint,
+                "room": room_id
+            }))
+            print(f"✅ MATCHED {peer1_id} <-> {peer2_id}")
+        except:
+            pass  # Client disconnected
     
-    # Find their endpoints
-    peer1_endpoint = next((ep for cid, ep in match_queue if cid == peer1_id), "unknown:54500")
-    peer2_endpoint = next((ep for cid, ep in match_queue if cid == peer2_id), "unknown:54500")
-    
-    # Send match info
-    await connected_clients[peer1_id].send_text(json.dumps({
-        "type": "match",
-        "peer_endpoint": peer2_endpoint,
-        "room": room_id
-    }))
-    await connected_clients[peer2_id].send_text(json.dumps({
-        "type": "match",
-        "peer_endpoint": peer1_endpoint,
-        "room": room_id
-    }))
-    
-    print(f"Matched {peer1_id} <-> {peer2_id} in room {room_id}")
+    if room_clients:  # Odd one out stays queued
+        rooms[room_id] = room_clients
+
 
 def cleanup_client(client_id: str):
     """Remove disconnected client"""
