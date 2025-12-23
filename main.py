@@ -147,6 +147,8 @@ async def punch_in(request: PunchRequest):
     print(f"[{room_id}] {addr} {'✅READY' if request.ready else '⏳WAITING'} "
           f"({total_players} total players, {ready_count} ready)")
     
+    target_list = None
+
     # PUNCH TIME! All ready players get targets
     if ready_count >= 2:
         print(f"[{room_id}] 🚀 PUNCH TIME! {ready_count}/{total_players} ready")
@@ -163,7 +165,7 @@ async def punch_in(request: PunchRequest):
                     "your_addr": addr,
                     "ready_count": ready_count,
                     "targets": target_list,
-                    "total_players": total_players
+                    "players": total_players
                 }
                 print(f"[{room_id}] → {addr} punched {len(targets)} targets")
                 return response
@@ -174,7 +176,7 @@ async def punch_in(request: PunchRequest):
         "your_addr": addr,
         "ready_count": ready_count,
         "targets": target_list,
-        "total_players": total_players
+        "players": total_players
     }
     return response
 
