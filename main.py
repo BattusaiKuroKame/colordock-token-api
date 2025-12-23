@@ -134,7 +134,7 @@ async def punch_in(request: PunchRequest, raw_request: Request):
     
     # Add/update player
     player = {
-        "ip": request.ip,
+        "ip": client_ip,
         "port": request.port,
         "ready": request.ready,
         "waiting": request.waiting,
