@@ -184,34 +184,36 @@ async def broadcast_room_status(room_id: str):
             await connected_clients[client_id].send_text(json.dumps(status_msg))
 
 async def punch_all_players(room_id: str):
-    """Pair up all ready players and send PUNCHNOW"""
+    """Send ALL players' endpoints to EVERYONE"""
     room_clients = rooms.get(room_id, [])
     ready_clients = [cid for cid in room_clients 
                     if cid in player_states and player_states[cid].get("ready")]
     
-    for i in range(0, len(ready_clients), 2):
-        if i + 1 < len(ready_clients):
-            peer1_id = ready_clients[i]
-            peer2_id = ready_clients[i + 1]
-            
-            peer1_endpoint = player_states[peer1_id]["endpoint"]
-            peer2_endpoint = player_states[peer2_id]["endpoint"]
-            
-            # PUNCHNOW!
-            try:
-                await connected_clients[peer1_id].send_text(json.dumps({
-                    "type": "PUNCHNOW",
-                    "peer_endpoint": peer2_endpoint,
-                    "room": room_id
-                }))
-                await connected_clients[peer2_id].send_text(json.dumps({
-                    "type": "PUNCHNOW",
-                    "peer_endpoint": peer1_endpoint,
-                    "room": room_id
-                }))
-                print(f"🚀 PUNCHNOW {peer1_id} ↔ {peer2_id}")
-            except:
-                pass
+    if len(ready_clients) < 2:
+        return
+        
+    # Build complete peer list for each player
+    for client_id in ready_clients:
+        peers = []
+        for other_id in ready_clients:
+            if other_id != client_id:  # Not self
+                peers.append({
+                    "id": other_id,
+                    "endpoint": player_states[other_id]["endpoint"]
+                })
+        
+        # Send FULL peer list!
+        try:
+            await connected_clients[client_id].send_text(json.dumps({
+                "type": "PUNCHNOW",
+                "room": room_id,
+                "peers": peers,  # Array of ALL other players
+                "total_players": len(ready_clients)
+            }))
+            print(f"🚀 {client_id} gets {len(peers)} peers")
+        except:
+            pass
+
 
 def cleanup_client(client_id: str):
     """Remove disconnected client from all state"""
