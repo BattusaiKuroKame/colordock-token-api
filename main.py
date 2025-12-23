@@ -114,12 +114,12 @@ async def punch_in(request: PunchRequest):
     cleanup_rooms()
 
     if request.success:
-    # Client reports success → remove from room
-    addr = f"{request.ip}:{request.port}"
-    if room_id in rooms:
-        rooms[room_id] = [p for p in rooms[room_id] if f"{p['ip']}:{p['port']}" != addr]
-        print(f"[{room_id}] ✅ {addr} SUCCESS - removed from room")
-    return {"status": "SUCCESS_CONFIRMED"}
+        # Client reports success → remove from room
+        addr = f"{request.ip}:{request.port}"
+        if room_id in rooms:
+            rooms[room_id] = [p for p in rooms[room_id] if f"{p['ip']}:{p['port']}" != addr]
+            print(f"[{room_id}] ✅ {addr} SUCCESS - removed from room")
+        return {"status": "SUCCESS_CONFIRMED"}
     
     # Init room
     if room_id not in rooms:
