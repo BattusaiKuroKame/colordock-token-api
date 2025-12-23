@@ -109,6 +109,8 @@ async def punch_in(request: PunchRequest):
 
     room_id = request.room
     addr = f"{request.ip}:{request.port}"
+
+    print(f'Request from {addr} for room {room_id}')
     
     # Cleanup old rooms
     cleanup_rooms()
@@ -150,7 +152,7 @@ async def punch_in(request: PunchRequest):
     target_list = None
 
     # PUNCH TIME! All ready players get targets
-    if ready_count >= 2:
+    if ready_count >= 2 and ready_count == total_players:
         print(f"[{room_id}] 🚀 PUNCH TIME! {ready_count}/{total_players} ready")
         
         for i, player in enumerate(rooms[room_id]):
