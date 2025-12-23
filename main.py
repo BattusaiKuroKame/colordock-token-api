@@ -93,6 +93,7 @@ class PunchRequest(BaseModel):
     room: str
     ready: bool = False
     waiting: bool = False
+    success: bool = False  # NEW: "connected!"
 
 class RoomResponse(BaseModel):
     status: str
@@ -105,11 +106,20 @@ class RoomResponse(BaseModel):
 
 @app.post("/punch_in", response_model=RoomResponse)
 async def punch_in(request: PunchRequest):
+
     room_id = request.room
     addr = f"{request.ip}:{request.port}"
     
     # Cleanup old rooms
     cleanup_rooms()
+
+    if request.success:
+    # Client reports success → remove from room
+    addr = f"{request.ip}:{request.port}"
+    if room_id in rooms:
+        rooms[room_id] = [p for p in rooms[room_id] if f"{p['ip']}:{p['port']}" != addr]
+        print(f"[{room_id}] ✅ {addr} SUCCESS - removed from room")
+    return {"status": "SUCCESS_CONFIRMED"}
     
     # Init room
     if room_id not in rooms:
