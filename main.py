@@ -88,7 +88,6 @@ rooms: Dict[str, List[Dict]] = {}
 room_cleanup_time = 300  # 5min inactive → cleanup
 
 class PunchRequest(BaseModel):
-    ip: str
     port: int
     room: str
     ready: bool = False
@@ -104,9 +103,9 @@ class RoomResponse(BaseModel):
     targets: Optional[List[Dict]] = None
 
 @app.post("/punch_in", response_model=RoomResponse)
-async def punch_in(request: PunchRequest, raw_request = Request):
+async def punch_in(request: PunchRequest, raw_request: Request):
 
-    client_ip = raw_request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    client_ip = raw_request.client.host
 
     room_id = request.room
     addr = f"{client_ip}:{request.port}"
