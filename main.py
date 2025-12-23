@@ -1,5 +1,7 @@
 import os
 import traceback
+import asyncio
+import time
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
@@ -10,14 +12,13 @@ from github_app import generate_installation_token
 from storage import issue_token_for_user
 
 from pydantic import BaseModel
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 import json
-import time
 from datetime import datetime, timedelta
 
 TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
 
-app = FastAPI(title="GitHub Token API + P2P Matchmaking")
+app = FastAPI(title="GitHub Token API + P2P Ready-State Matchmaking")
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,6 +27,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# === STATE MANAGEMENT ===
+connected_clients: Dict[str, WebSocket] = {}
+rooms: Dict[str, List[str]] = {}  # room_id -> list of client_ids
+player_states: Dict[str, Dict] = {}  # client_id -> {"room": str, "ready": bool, "endpoint": str}
 
 # === EXISTING AUTH ENDPOINTS ===
 @app.post("/login", response_model=LoginResponse)
@@ -57,28 +63,20 @@ def login(body: LoginRequest):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# === MULTIPLAYER MATCHMAKING ===
-connected_clients: Dict[str, WebSocket] = {}
-match_queue: List[Tuple[str, str]] = []  # (client_id, endpoint)
-rooms: Dict[str, List[str]] = {}  # room_id -> list of client_ids
-
-class PlayerInfo(BaseModel):
-    room: str
-    ready: bool = False
-    local_port: int = 54500
-
+# === READY-STATE MATCHMAKING ===
 @app.get("/")
 async def root():
     return {
         "status": "ok",
-        "message": "P2P Signaling Server LIVE!",
+        "message": "P2P Ready-State Signaling Server LIVE!",
         "endpoints": {
             "POST /login": "GitHub token auth",
-            "WS /ws": "WebSocket matchmaking",
-            "GET /rooms": "List active rooms"
+            "WS /ws": "WebSocket matchmaking (READY required)",
+            "GET /rooms": "List active rooms",
+            "GET /test": "Test page"
         },
         "active_rooms": len(rooms),
-        "queued_players": len(match_queue)
+        "connected_clients": len(connected_clients)
     }
 
 @app.websocket("/ws")
@@ -88,56 +86,21 @@ async def websocket_endpoint(websocket: WebSocket):
     connected_clients[client_id] = websocket
     client_ip = websocket.client.host
     
-    await websocket.send_text(json.dumps({
-        "type": "welcome", 
-        "id": client_id,
-        "public_ip": client_ip
-    }))
+    print(f"New connection: {client_id} from {client_ip}")
     
     try:
-        # Wait for JOIN message
-        data = await websocket.receive_text()
-        player_info = json.loads(data)
-        
-        if player_info.get("type") != "join":
-            await websocket.close(code=1008, reason="Invalid join")
-            return
-            
-        room_id = player_info.get("room", "default")
-        endpoint = f"{client_ip}:{player_info.get('local_port', 54500)}"
-        
-        # Initialize room if needed
-        if room_id not in rooms:
-            rooms[room_id] = []
-        
-        # Add to room AND queue
-        rooms[room_id].append(client_id)
-        match_queue.append((client_id, endpoint))
-        
-        await websocket.send_text(json.dumps({
-            "type": "queued",
-            "room": room_id,
-            "position": len(rooms[room_id]),  # Current position
-            "total_in_room": len(rooms[room_id]),  # Total players in room
-            "endpoint": endpoint
-        }))
-        
-        print(f"Player {client_id} joined room {room_id} (total: {len(rooms[room_id])})")
-        
-        # === FIXED: Continuous matchmaking loop ===
         while client_id in connected_clients:
-            # Check if room has 2+ players
-            if room_id in rooms and len(rooms[room_id]) >= 2:
-                await match_players(room_id)
-                break  # Matchmade, exit loop
+            data = await websocket.receive_text()
+            msg = json.loads(data)
             
-            # Heartbeat: wait but send ping to keep alive
-            try:
-                await websocket.receive_text(timeout=5)
-            except:
-                # No message? Send ping to keep connection alive
-                await websocket.send_text(json.dumps({"type": "ping"}))
-                await asyncio.sleep(1)
+            if msg.get("type") == "join":
+                await handle_join(client_id, websocket, client_ip, msg)
+                
+            elif msg.get("type") == "ready":
+                await handle_ready(client_id, websocket)
+                
+            elif msg.get("type") == "ping":
+                await websocket.send_text(json.dumps({"type": "pong"}))
                 
     except WebSocketDisconnect:
         print(f"Client {client_id} disconnected")
@@ -146,88 +109,183 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         cleanup_client(client_id)
 
-async def match_players(room_id: str):
-    """Match ALL players in room (2 at a time)"""
+async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+    """Handle client joining a room"""
+    room_id = msg.get("room", "default")
+    endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
+    
+    # Store player state
+    player_states[client_id] = {
+        "room": room_id,
+        "ready": False,
+        "endpoint": endpoint
+    }
+    
+    # Add to room
+    if room_id not in rooms:
+        rooms[room_id] = []
+    rooms[room_id].append(client_id)
+    
+    await websocket.send_text(json.dumps({
+        "type": "joined",
+        "id": client_id,
+        "room": room_id,
+        "players_needed": 2,
+        "current_players": len(rooms[room_id])
+    }))
+    
+    print(f"Player {client_id} joined {room_id} ({len(rooms[room_id])}/{2})")
+    await broadcast_room_status(room_id)
+
+async def handle_ready(client_id: str, websocket: WebSocket):
+    """Handle client ready signal"""
+    if client_id not in player_states:
+        return
+        
+    player_states[client_id]["ready"] = True
+    room_id = player_states[client_id]["room"]
+    
+    print(f"Player {client_id} READY in {room_id}")
+    await websocket.send_text(json.dumps({"type": "ready_ack", "status": "ready"}))
+    await check_room_ready(room_id)
+
+async def check_room_ready(room_id: str):
+    """Check if ALL players in room are ready"""
     room_clients = rooms.get(room_id, [])
     if len(room_clients) < 2:
         return
         
-    print(f"Matchmaking room {room_id}: {len(room_clients)} players")
+    ready_count = sum(1 for cid in room_clients 
+                     if cid in player_states and player_states[cid].get("ready"))
     
-    # Pair them up
-    while len(room_clients) >= 2:
-        peer1_id = room_clients.pop(0)
-        peer2_id = room_clients.pop(0)
-        
-        # Get endpoints from queue
-        peer1_endpoint = next((ep for cid, ep in match_queue if cid == peer1_id), f"{websocket.client.host}:54500")
-        peer2_endpoint = next((ep for cid, ep in match_queue if cid == peer2_id), f"{websocket.client.host}:54500")
-        
-        try:
-            # Send match to both
-            await connected_clients[peer1_id].send_text(json.dumps({
-                "type": "match",
-                "peer_endpoint": peer2_endpoint,
-                "room": room_id
-            }))
-            await connected_clients[peer2_id].send_text(json.dumps({
-                "type": "match",
-                "peer_endpoint": peer1_endpoint,
-                "room": room_id
-            }))
-            print(f"✅ MATCHED {peer1_id} <-> {peer2_id}")
-        except:
-            pass  # Client disconnected
+    await broadcast_room_status(room_id)
     
-    if room_clients:  # Odd one out stays queued
-        rooms[room_id] = room_clients
+    # ALL READY? PUNCHNOW!
+    if ready_count == len(room_clients):
+        print(f"🚀 {room_id}: ALL {len(room_clients)} READY! Sending PUNCHNOW")
+        await punch_all_players(room_id)
 
+async def broadcast_room_status(room_id: str):
+    """Broadcast room status to all players"""
+    room_clients = rooms.get(room_id, [])
+    ready_count = sum(1 for cid in room_clients 
+                     if cid in player_states and player_states[cid].get("ready"))
+    
+    status_msg = {
+        "type": "room_status",
+        "room": room_id,
+        "ready_count": ready_count,
+        "total_players": len(room_clients),
+        "all_ready": ready_count == len(room_clients)
+    }
+    
+    for client_id in room_clients:
+        if client_id in connected_clients:
+            await connected_clients[client_id].send_text(json.dumps(status_msg))
+
+async def punch_all_players(room_id: str):
+    """Pair up all ready players and send PUNCHNOW"""
+    room_clients = rooms.get(room_id, [])
+    ready_clients = [cid for cid in room_clients 
+                    if cid in player_states and player_states[cid].get("ready")]
+    
+    for i in range(0, len(ready_clients), 2):
+        if i + 1 < len(ready_clients):
+            peer1_id = ready_clients[i]
+            peer2_id = ready_clients[i + 1]
+            
+            peer1_endpoint = player_states[peer1_id]["endpoint"]
+            peer2_endpoint = player_states[peer2_id]["endpoint"]
+            
+            # PUNCHNOW!
+            try:
+                await connected_clients[peer1_id].send_text(json.dumps({
+                    "type": "PUNCHNOW",
+                    "peer_endpoint": peer2_endpoint,
+                    "room": room_id
+                }))
+                await connected_clients[peer2_id].send_text(json.dumps({
+                    "type": "PUNCHNOW",
+                    "peer_endpoint": peer1_endpoint,
+                    "room": room_id
+                }))
+                print(f"🚀 PUNCHNOW {peer1_id} ↔ {peer2_id}")
+            except:
+                pass
 
 def cleanup_client(client_id: str):
-    """Remove disconnected client"""
-    connected_clients.pop(client_id, None)
-    match_queue[:] = [(cid, ep) for cid, ep in match_queue if cid != client_id]
-    for room_id, client_ids in rooms.items():
+    """Remove disconnected client from all state"""
+    if client_id in connected_clients:
+        connected_clients.pop(client_id, None)
+    if client_id in player_states:
+        player_states.pop(client_id, None)
+    
+    # Remove from all rooms
+    for room_id, client_ids in list(rooms.items()):
         if client_id in client_ids:
             client_ids.remove(client_id)
             if not client_ids:
                 del rooms[room_id]
+            else:
+                asyncio.create_task(check_room_ready(room_id))
 
 @app.get("/rooms")
 async def list_rooms():
-    """Debug: list active rooms"""
-    return {"rooms": {k: len(v) for k, v in rooms.items()}}
+    """Debug endpoint"""
+    room_status = {}
+    for room_id, clients in rooms.items():
+        ready_count = sum(1 for cid in clients 
+                         if cid in player_states and player_states[cid].get("ready"))
+        room_status[room_id] = {
+            "players": len(clients),
+            "ready": ready_count
+        }
+    return {"rooms": room_status}
 
-# Test HTML page
 @app.get("/test")
 async def test_page():
     html = """
     <!DOCTYPE html>
     <html>
     <body>
-        <h1>UDP Matchmaking Test</h1>
+        <h1>UDP Ready-State Matchmaking Test</h1>
         <input id="room" placeholder="Room ID" value="testroom">
-        <button onclick="join()">Join Queue</button>
+        <button onclick="joinRoom()">Join Room</button>
+        <button onclick="setReady()" id="readyBtn" disabled>READY ✓</button>
         <pre id="log"></pre>
         <script>
         const ws = new WebSocket(`wss://${location.host}/ws`);
-        let clientId;
+        let clientId, roomId;
         
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             log(data);
-            if (data.type === 'match') {
+            if (data.type === 'PUNCHNOW') {
                 log(`🎮 P2P CONNECTED! Punching to ${data.peer_endpoint}`);
-                // Start UDP hole punching here
+                document.getElementById('readyBtn').disabled = true;
+            } else if (data.type === 'joined') {
+                clientId = data.id; roomId = data.room;
+                document.getElementById('readyBtn').disabled = false;
+            } else if (data.type === 'room_status' && data.all_ready) {
+                log('🎉 ALL READY - PUNCHNOW incoming!');
             }
         };
         
-        function join() {
-            const room = document.getElementById('room').value;
-            ws.send(JSON.stringify({type: 'join', room: room, local_port: 54500}));
+        function joinRoom() {
+            roomId = document.getElementById('room').value;
+            ws.send(JSON.stringify({type: 'join', room: roomId, local_port: 54500}));
         }
         
-        function log(msg) { document.getElementById('log').textContent += JSON.stringify(msg) + '\\n'; }
+        function setReady() {
+            ws.send(JSON.stringify({type: 'ready'}));
+            document.getElementById('readyBtn').innerText = 'READY ✓';
+            document.getElementById('readyBtn').disabled = true;
+        }
+        
+        function log(msg) { 
+            document.getElementById('log').textContent += 
+                new Date().toLocaleTimeString() + ' ' + JSON.stringify(msg) + '\\n'; 
+        }
         </script>
     </body>
     </html>
