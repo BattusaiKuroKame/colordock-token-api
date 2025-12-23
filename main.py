@@ -102,7 +102,6 @@ class RoomResponse(BaseModel):
     players: int
     ready_count: int
     targets: Optional[List[Dict]] = None
-    total_players: Optional[int] = None
 
 @app.post("/punch_in", response_model=RoomResponse)
 async def punch_in(request: PunchRequest):
@@ -171,12 +170,14 @@ async def punch_in(request: PunchRequest):
                 }
                 print(f"[{room_id}] → {addr} punched {len(targets)} targets")
                 return response
+    print('SENDING WAIT RESPONSE')
     # Still waiting
     response = {
         "status": "WAITING",
         "room": room_id,
         "your_addr": addr,
         "ready_count": ready_count,
+        "targets": None,
         "players": total_players
     }
     return response
