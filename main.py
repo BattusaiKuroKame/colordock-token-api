@@ -175,7 +175,6 @@ async def punch_in(request: PunchRequest):
         "room": room_id,
         "your_addr": addr,
         "ready_count": ready_count,
-        "targets": target_list if target_list else [],
         "players": total_players
     }
     return response
