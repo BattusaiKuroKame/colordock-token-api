@@ -213,6 +213,85 @@ async def punch_all_players(room_id: str):
             print(f"🚀 {client_id} gets {len(peers)} peers")
         except:
             pass
+# Add this helper function
+async def notify_player_joined(room_id: str, new_client_id: str):
+    """Notify ALL players about new joiner + send existing to new player"""
+    room_clients = rooms.get(room_id, [])
+    
+    # 1. Tell EXISTING players about NEW player
+    new_player_info = {
+        "type": "player_joined",
+        "player": {
+            "id": new_client_id,
+            "endpoint": player_states[new_client_id]["endpoint"],
+            "joined_at": int(time.time())
+        },
+        "room": room_id
+    }
+    
+    for existing_id in room_clients:
+        if existing_id != new_client_id and existing_id in connected_clients:
+            try:
+                await connected_clients[existing_id].send_text(json.dumps(new_player_info))
+                print(f"📢 {existing_id} notified: {new_client_id} joined")
+            except:
+                pass
+    
+    # 2. Tell NEW player about EXISTING players
+    existing_players = []
+    for existing_id in room_clients:
+        if existing_id != new_client_id and existing_id in player_states:
+            existing_players.append({
+                "id": existing_id,
+                "endpoint": player_states[existing_id]["endpoint"],
+                "ready": player_states[existing_id]["ready"]
+            })
+    
+    welcome_msg = {
+        "type": "welcome_existing",
+        "room": room_id,
+        "existing_players": existing_players,
+        "message": f"Welcome! {len(existing_players)} players already here"
+    }
+    
+    try:
+        await connected_clients[new_client_id].send_text(json.dumps(welcome_msg))
+        print(f"👋 {new_client_id} welcomed with {len(existing_players)} existing")
+    except:
+        pass
+
+# Update handle_join function
+async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+    """Handle client joining a room"""
+    room_id = msg.get("room", "default")
+    endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
+    
+    # Store player state
+    player_states[client_id] = {
+        "room": room_id,
+        "ready": False,
+        "endpoint": endpoint
+    }
+    
+    # Add to room
+    if room_id not in rooms:
+        rooms[room_id] = []
+    rooms[room_id].append(client_id)
+    
+    # 🔥 NEW: Notify everyone about join!
+    await notify_player_joined(room_id, client_id)
+    
+    await websocket.send_text(json.dumps({
+        "type": "joined",
+        "id": client_id,
+        "room": room_id,
+        "players_needed": 2,
+        "current_players": len(rooms[room_id])
+    }))
+    
+    print(f"Player {client_id} joined {room_id} ({len(rooms[room_id])}/{2})")
+    await broadcast_room_status(room_id)
+
 
 
 def cleanup_client(client_id: str):
