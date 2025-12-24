@@ -117,13 +117,22 @@ async def websocket_endpoint(websocket: WebSocket):
                         "ready": player_states[client]["ready"],
                         "endpoint": player_states[client]["endpoint"]
                     })
+
+                room_clients = rooms.get(room_id, [])
+                ready_count = sum(1 for cid in room_clients 
+                                if cid in player_states and player_states[cid]["ready"])
                 
-                temp ={
+                status_msg = {
+                    "message": 'room_query',
                     "type": "room_status",
-                    "room_id": room_id,
+                    "room": room_id,
+                    "ready_count": ready_count,
+                    "total_players": len(room_clients),
+                    "all_ready": ready_count == len(room_clients),
                     "players": t
                 }
-                await websocket.send_text(json.dumps(temp))
+
+                await websocket.send_text(json.dumps(status_msg))
                 # await broadcast_room_status(room_id, 'Status Update')
                 
     except WebSocketDisconnect:
