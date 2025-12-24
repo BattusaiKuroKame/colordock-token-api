@@ -92,6 +92,8 @@ async def websocket_endpoint(websocket: WebSocket):
         while client_id in connected_clients:
             data = await websocket.receive_text()
             msg = json.loads(data)
+
+            print(data)
             
             if msg.get("type") == "join":
                 await handle_join(client_id, websocket, client_ip, msg)
