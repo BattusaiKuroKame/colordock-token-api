@@ -114,6 +114,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 room_clients = rooms.get(room_id, [])
                 ready_count = sum(1 for cid in room_clients 
                                 if cid in player_states and player_states[cid]["ready"])
+                temp = []
+                for client in room_clients:
+                    d = player_states[client]
+                    temp.append({
+                        "client_id": client,
+                        "ready": d['ready'],
+                        "endpoint": d['endpoint']
+                    })
                 
                 status_msg = {
                     "message": 'room_query',
@@ -122,7 +130,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "ready_count": ready_count,
                     "total_players": len(room_clients),
                     "all_ready": ready_count == len(room_clients),
-                    "player_info": room_clients
+                    "player_info": temp
                 }
 
                 await websocket.send_text(json.dumps(status_msg))
@@ -234,6 +242,15 @@ async def broadcast_room_status(room_id: str, message: str = ''):
     ready_count = sum(1 for cid in room_clients 
                      if cid in player_states and player_states[cid]["ready"])
     
+    temp = []
+    for client in room_clients:
+        d = player_states[client]
+        temp.append({
+            "client_id": client,
+            "ready": d['ready'],
+            "endpoint": d['endpoint']
+        })
+    
     status_msg = {
         "message": message,
         "type": "room_status",
@@ -241,7 +258,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        "player_info": room_clients
+        "player_info": temp
     }
     
     for client_id in room_clients:
