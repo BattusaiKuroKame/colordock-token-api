@@ -119,6 +119,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
                 
                 temp ={
+                    "type": "room_status",
                     "room_id": room_id,
                     "players": t
                 }
