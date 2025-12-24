@@ -109,7 +109,20 @@ async def websocket_endpoint(websocket: WebSocket):
                 
             elif msg.get("type") == "status":
                 room_id = player_states[client_id]["room"]
-                await websocket.send_text(json.dumps(room_id))
+                print(room_id)
+                
+                t = []
+                for client in rooms[room_id]:
+                    t.append({
+                        "ready": player_states[client]["ready"],
+                        "endpoint": player_states[client]["endpoint"]
+                    })
+                
+                temp ={
+                    "room_id": room_id,
+                    "players": t
+                }
+                await websocket.send_text(json.dumps(temp))
                 # await broadcast_room_status(room_id, 'Status Update')
                 
     except WebSocketDisconnect:
