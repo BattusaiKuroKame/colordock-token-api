@@ -185,7 +185,7 @@ async def check_room_ready(room_id: str):
     await broadcast_room_status(room_id)
     
     # ALL READY → PUNCHNOW!
-    if ready_count == len(room_clients):
+    if ready_count == len(room_clients) and ready_count > 1:
         print(f"🚀 {room_id}: {ready_count}/{len(room_clients)} READY → PUNCHNOW!")
         await punch_all_players(room_id)
 
