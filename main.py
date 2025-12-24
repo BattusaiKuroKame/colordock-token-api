@@ -145,6 +145,7 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     await websocket.send_text(json.dumps({
         "type": "joined",
         "id": client_id,
+        "ip": client_ip,
         "room": room_id,
         "players_needed": 2,  # Configurable
         "current_players": len(rooms[room_id])
