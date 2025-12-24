@@ -117,10 +117,11 @@ async def websocket_endpoint(websocket: WebSocket):
                 temp = []
                 for client in room_clients:
                     d = player_states[client]
+                    new_dict = {k: v for k, v in d.items() if k != "room"}
+                    
                     temp.append({
                         "client_id": client,
-                        "ready": d['ready'],
-                        "endpoint": d['endpoint']
+                        "client_info": new_dict
                     })
                 
                 status_msg = {
@@ -245,10 +246,11 @@ async def broadcast_room_status(room_id: str, message: str = ''):
     temp = []
     for client in room_clients:
         d = player_states[client]
+        new_dict = {k: v for k, v in d.items() if k != "room"}
+
         temp.append({
             "client_id": client,
-            "ready": d['ready'],
-            "endpoint": d['endpoint']
+            "client_info": new_dict
         })
     
     status_msg = {
