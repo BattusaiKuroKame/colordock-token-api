@@ -96,17 +96,14 @@ async def websocket_endpoint(websocket: WebSocket):
             if msg.get("type") == "join":
                 await handle_join(client_id, websocket, client_ip, msg)
                 
-            elif msg.get("type") == "ready":
-                await handle_ready(client_id, websocket)
-                
             elif msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
             elif msg.get("type") == "quit":
                 await websocket.handle_remove(client_id, websocket, client_ip, msg)
 
-            elif msg.get("type") == "ready_toggle":
-                await handle_ready_toggle(client_id, websocket, msg.get("ready", True))
+            elif msg.get("type") == "ready_state":
+                await handle_ready_toggle(client_id, websocket, msg.get("message", False))
                 
             elif msg.get("type") == "status":
                 room_id = player_states[client_id]["room"]
@@ -170,7 +167,7 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
     if room_id not in rooms:
         print('No valid room found')
         await websocket.send_text(json.dumps({
-            "type": "quit request",
+            "type": "quit",
             "status": 'Failed'
         }))
         return
@@ -185,8 +182,8 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
     
     # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
     await websocket.send_text(json.dumps({
-        "type": "quit request",
-        "status": 'Granted'
+        "type": "quit",
+        "status": 'granted'
     }))
     
     # Notify others + broadcast status
@@ -194,26 +191,6 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
     await broadcast_room_status(room_id, f'Player quit: {client_id}')
     
     print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
-
-
-async def handle_ready(client_id: str, websocket: WebSocket):
-    """PHASE 2: Handle ready signal (background WS)"""
-    if client_id not in player_states:
-        return
-        
-    player_states[client_id]["ready"] = True
-    room_id = player_states[client_id]["room"]
-    
-    # ACK to sender
-    await websocket.send_text(json.dumps({
-        "type": "ready_ack", 
-        "status": "ready"
-    }))
-    
-    # Check if room is ready
-    await check_room_ready(room_id)
-    
-    print(f"🟢 {client_id} READY in {room_id}")
 
 async def check_room_ready(room_id: str):
     """Check if room ready → PHASE 3 PUNCHNOW!"""
