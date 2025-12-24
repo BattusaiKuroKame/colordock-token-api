@@ -102,12 +102,16 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
+            elif msg.get("type") == "quit":
+                await websocket.handle_remove(client_id, websocket, client_ip, msg)
+
             elif msg.get("type") == "ready_toggle":
                 await handle_ready_toggle(client_id, websocket, msg.get("ready", True))
                 
             elif msg.get("type") == "status":
                 room_id = player_states[client_id]["room"]
-                await broadcast_room_status(room_id)
+                await websocket.send_text(json.dumps(room_id))
+                # await broadcast_room_status(room_id, 'Status Update')
                 
     except WebSocketDisconnect:
         print(f"🔌 {client_id} disconnected")
@@ -149,9 +153,48 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     
     # Notify others + broadcast status
     await notify_player_joined(room_id, client_id)
-    await broadcast_room_status(room_id)
+    await broadcast_room_status(room_id, f'New player joined: {client_id}')
     
     print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+
+async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+    """PHASE 1: Handle initial join (immediate ACK)"""
+    room_id = msg.get("room", "default")
+    endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
+    
+    # Remove client from State logs
+    # This will return None if the key is missing, avoiding a KeyError
+
+    
+    # Add to room
+    if room_id not in rooms:
+        print('No valid room found')
+        await websocket.send_text(json.dumps({
+            "type": "quit request",
+            "status": 'Failed'
+        }))
+        return
+    
+    removed_value = player_states.pop(client_id, None)
+    if not removed_value:
+        print('cant find client in player state logs')
+    print('Updated Player state logs:')
+    print(player_states)
+
+    rooms[room_id].remove(client_id)
+    
+    # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
+    await websocket.send_text(json.dumps({
+        "type": "quit request",
+        "status": 'Granted'
+    }))
+    
+    # Notify others + broadcast status
+    # await notify_player_joined(room_id, client_id)
+    await broadcast_room_status(room_id, f'Player quit: {client_id}')
+    
+    print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+
 
 async def handle_ready(client_id: str, websocket: WebSocket):
     """PHASE 2: Handle ready signal (background WS)"""
@@ -176,26 +219,27 @@ async def check_room_ready(room_id: str):
     """Check if room ready → PHASE 3 PUNCHNOW!"""
     room_clients = rooms.get(room_id, [])
     if len(room_clients) < 2:
-        await broadcast_room_status(room_id)
+        await broadcast_room_status(room_id,'Ready Check')
         return
         
     ready_count = sum(1 for cid in room_clients 
                      if cid in player_states and player_states[cid]["ready"])
     
-    await broadcast_room_status(room_id)
+    await broadcast_room_status(room_id,'Ready Check')
     
     # ALL READY → PUNCHNOW!
     if ready_count == len(room_clients) and ready_count > 1:
         print(f"🚀 {room_id}: {ready_count}/{len(room_clients)} READY → PUNCHNOW!")
         await punch_all_players(room_id)
 
-async def broadcast_room_status(room_id: str):
+async def broadcast_room_status(room_id: str, message: str = ''):
     """Broadcast status to entire room"""
     room_clients = rooms.get(room_id, [])
     ready_count = sum(1 for cid in room_clients 
                      if cid in player_states and player_states[cid]["ready"])
     
     status_msg = {
+        "message": message,
         "type": "room_status",
         "room": room_id,
         "ready_count": ready_count,
