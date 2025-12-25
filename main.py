@@ -117,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         cleanup_client(client_id)
 
-def get_peers(client_id: str, ignore_keys : list[str]):
+def get_peers(client_id: str, ignore_keys : list[str] = []):
     """returns the peers of the client ID"""
     try:
         print('Getting peers')
