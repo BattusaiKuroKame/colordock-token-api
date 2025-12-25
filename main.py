@@ -102,7 +102,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
             elif msg.get("type") == "quit":
-                await websocket.handle_remove(client_id, websocket, client_ip, msg)
+                await handle_remove(client_id, websocket, client_ip, msg)
 
             elif msg.get("type") == "ready_state":
                 await handle_ready_toggle(client_id, websocket, msg.get("message", False))
