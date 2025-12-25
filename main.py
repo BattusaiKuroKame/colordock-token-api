@@ -121,47 +121,43 @@ def get_peers(client_id: str, ignore_keys : list[str]):
     """returns the peers of the client ID"""
     if not ignore_keys:
         ignore_keys =[]
-    try:
-        print('Getting peers')
 
-        if client_id not in player_states:
-            return []
-        
-        room_id = player_states[client_id]["room"]
-        
-        ###########################
-        room_clients = rooms.get(room_id, [])
-        # ready_clients = [cid for cid in room_clients 
-        #                 if cid in player_states and player_states[cid]["ready"]]
+    print('Getting peers')
 
-        if len(room_clients) < 2:
-            return []
-        
-        # Each player gets ALL other players endpoints
-        peers = []
-        for other_id in room_clients:
-            if other_id != client_id:
-
-                temp = {
-                    "id": other_id,
-                }
-
-                if other_id in player_states:  # ✅ Safe check
-                    peer_info = player_states[other_id].copy()
-                else:
-                    continue
-
-                for k in ignore_keys:
-                    peer_info.pop(k,None)
-
-                temp.update(peer_info)
-                peers.append(temp)
-
-        return peers
-    except Exception as e:
+    if client_id not in player_states:
         return []
-    finally:
-        print('[ERROR in get_peers]: ',e)
+    
+    room_id = player_states[client_id]["room"]
+    
+    ###########################
+    room_clients = rooms.get(room_id, [])
+    # ready_clients = [cid for cid in room_clients 
+    #                 if cid in player_states and player_states[cid]["ready"]]
+
+    if len(room_clients) < 2:
+        return []
+    
+    # Each player gets ALL other players endpoints
+    peers = []
+    for other_id in room_clients:
+        if other_id != client_id:
+
+            temp = {
+                "id": other_id,
+            }
+
+            if other_id not in player_states:  # ✅ Early continue
+                continue
+
+            peer_info = player_states[other_id].copy()
+
+            for k in ignore_keys:
+                peer_info.pop(k,None)
+
+            temp.update(peer_info)
+            peers.append(temp)
+
+    return peers
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
