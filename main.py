@@ -82,6 +82,7 @@ async def root():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+
     client_id = f"client_{len(connected_clients) + 1}_{int(time.time())}"
     connected_clients[client_id] = websocket
     client_ip = websocket.client.host
@@ -96,6 +97,12 @@ async def websocket_endpoint(websocket: WebSocket):
             print(data)
             
             if msg.get("type") == "join":
+
+                game_id = msg.get("game_id",client_id)
+                connected_clients[game_id] = websocket
+                connected_clients[client_id].pop()
+                client_id = game_id
+
                 await handle_join(client_id, websocket, client_ip, msg)
                 
             elif msg.get("type") == "ping":
@@ -189,6 +196,19 @@ async def handle_ready_toggle(client_id: str, websocket: WebSocket, ready_state:
 
 async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
+
+    # # check if player already in the room with IP
+    # endpoint_list = [
+    #     d["endpoint"]
+    #     for d in player_states.values()
+    #     if "endpoint" in d
+    # ]
+
+    # ip_list = [ en.split(':')[0] for en in endpoint_list]
+
+    # if client_ip in ip_list:
+    #     pass
+
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     game_id = msg.get("game_id",'')
@@ -212,7 +232,7 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
         "id": client_id,
         "ip": client_ip,
         "room": room_id,
-        "players_needed": 2,  # Configurable
+        "players_needed": "minimum 2",  # Configurable
         "current_players": len(rooms[room_id])
     }))
     
@@ -285,25 +305,11 @@ async def broadcast_room_status(room_id: str, message: str = ''):
     room_clients = rooms.get(room_id, [])
     ready_count = sum(1 for cid in room_clients 
                      if cid in player_states and player_states[cid]["ready"])
-    
-    # temp = []
-    # for client in room_clients:
-    #     d = player_states[client]
-    #     new_dict = {k: v for k, v in d.items() if k != "room"}
-
-    #     temp.append({
-    #         "client_id": client,
-    #         "client_info": new_dict
-    #     })
-
-    print('Broadcasting room status2')
  
     for client_id in room_clients:
         if client_id in connected_clients:
             try:
-
                 peers = get_peers(client_id,["room"])
-
                 status_msg = {
                     "message": message,
                     "type": "room_status",
