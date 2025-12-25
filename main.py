@@ -138,14 +138,10 @@ def get_peers(client_id: str, ignore_keys : list[str]):
         # Each player gets ALL other players endpoints
         peers = []
         for other_id in room_clients:
-            if other_id != client_id:
-
+            if other_id != client_id and other_id in player_states:
                 temp = {
                     "id": other_id,
                 }
-
-                if other_id not in player_states:  # ✅ Early continue
-                    continue
 
                 peer_info = player_states[other_id].copy()
 
@@ -156,7 +152,6 @@ def get_peers(client_id: str, ignore_keys : list[str]):
                 peers.append(temp)
 
         return peers
-    
     except Exception as e:
         return e
 
