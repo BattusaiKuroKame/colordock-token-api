@@ -117,8 +117,10 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         cleanup_client(client_id)
 
-def get_peers(client_id: str, ignore_keys : list[str] = []):
+def get_peers(client_id: str, ignore_keys : list[str]):
     """returns the peers of the client ID"""
+    if not ignore_keys:
+        ignore_keys =[]
     try:
         print('Getting peers')
 
@@ -143,7 +145,7 @@ def get_peers(client_id: str, ignore_keys : list[str] = []):
                 temp = {
                     "id": other_id,
                 }
-                
+
                 if other_id in player_states:  # ✅ Safe check
                     peer_info = player_states[other_id].copy()
                 else:
