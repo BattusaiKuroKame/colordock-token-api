@@ -294,7 +294,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         })
 
     print('Broadcasting room status')
-    peers = await get_peers(client_id,["room"])
+    # peers = await get_peers(client_id,["room"])
 
     status_msg = {
         "message": message,
@@ -303,7 +303,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        "peers": peers
+        # "peers": peers
     }
     
     for client_id in room_clients:
