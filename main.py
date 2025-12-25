@@ -115,14 +115,15 @@ async def websocket_endpoint(websocket: WebSocket):
                 ready_count = sum(1 for cid in room_clients 
                                 if cid in player_states and player_states[cid]["ready"])
                 temp = []
-                for client in room_clients:
-                    d = player_states[client]
-                    new_dict = {k: v for k, v in d.items() if k != "room"}
-                    
-                    temp.append({
-                        "client_id": client,
-                        "client_info": new_dict
-                    })
+                if len(room_clients) > 0:
+                    for client in room_clients:
+                        d = player_states[client]
+                        new_dict = {k: v for k, v in d.items() if k != "room"}
+                        
+                        temp.append({
+                            "client_id": client,
+                            "client_info": new_dict
+                        })
                 
                 status_msg = {
                     "message": 'room_query',
