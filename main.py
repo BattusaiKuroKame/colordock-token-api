@@ -110,7 +110,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
             elif msg.get("type") == "quit":
-                await handle_remove(client_id, websocket, client_ip, msg)
+                await handle_quit(client_id, websocket, client_ip, msg)
 
             elif msg.get("type") == "ready_state":
                 await handle_ready_toggle(client_id, websocket, msg.get("message", False))
@@ -249,7 +249,7 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     
     print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
 
-async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
@@ -267,12 +267,9 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
         }))
         return
     
-    removed_value = player_states.pop(client_id, None)
-    if not removed_value:
-        print('cant find client in player state logs')
-    print('Updated Player state logs:')
-    print(player_states)
-
+    # clean memory
+    player_states.pop(client_id, None)
+    connected_clients.pop(client_id,None)
     rooms[room_id].remove(client_id)
     
     # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
