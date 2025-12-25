@@ -108,7 +108,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_ready_toggle(client_id, websocket, msg.get("message", False))
                 
             elif msg.get("type") == "status":
-                await handle_status(client_id, websocket, client_ip, msg)           
+                await handle_status(client_id, websocket, client_ip, msg)
                 
     except WebSocketDisconnect:
         print(f"🔌 {client_id} disconnected")
@@ -118,22 +118,43 @@ async def websocket_endpoint(websocket: WebSocket):
         cleanup_client(client_id)
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+
     room_id = player_states[client_id]["room"]
+    
+    ###########################
+    room_clients = rooms.get(room_id, [])
+    # ready_clients = [cid for cid in room_clients 
+    #                 if cid in player_states and player_states[cid]["ready"]]
+
+    
+    if len(room_clients) < 2:
+        return
+    
+    # Each player gets ALL other players' endpoints
+    peers = []
+    ignore_list = ["room"]
+    for other_id in room_clients:
+        if other_id != client_id:
+
+            temp = {
+                "id": other_id,
+            }
+            peer_info = player_states[other_id]
+
+            for k in ignore_list:
+                peer_info.pop(k,None)
+
+            temp.update(peer_info)
+
+            peers.append(temp)
+
+    #################################
+    
     print(room_id)
 
     room_clients = rooms.get(room_id, [])
     ready_count = sum(1 for cid in room_clients 
                     if cid in player_states and player_states[cid]["ready"])
-    temp = []
-    if len(room_clients) > 0:
-        for client in room_clients:
-            d = player_states[client]
-            new_dict = {k: v for k, v in d.items() if k != "room"}
-            
-            temp.append({
-                "client_id": client,
-                "client_info": new_dict
-            })
     
     status_msg = {
         "message": 'room_query',
@@ -142,7 +163,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        "player_info": temp
+        "peers": peers
     }
 
     await websocket.send_text(json.dumps(status_msg))
@@ -293,7 +314,7 @@ async def punch_all_players(room_id: str):
         ignore_list = ["room","ready"]
         for other_id in ready_clients:
             if other_id != client_id:
-                
+
                 temp = {
                     "id": other_id,
                 }
