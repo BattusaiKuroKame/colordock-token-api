@@ -101,7 +101,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Change temporary client ID to user provided game ID for atomicity of user
                 game_id = msg.get("game_id",client_id)
                 connected_clients[game_id] = websocket
-                oldSocket = connected_clients[client_id].pop()
+                connected_clients.pop(client_id,None)
                 client_id = game_id
 
                 await handle_join(client_id, websocket, client_ip, msg)
