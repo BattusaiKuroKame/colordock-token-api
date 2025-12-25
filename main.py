@@ -108,35 +108,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_ready_toggle(client_id, websocket, msg.get("message", False))
                 
             elif msg.get("type") == "status":
-                room_id = player_states[client_id]["room"]
-                print(room_id)
-
-                room_clients = rooms.get(room_id, [])
-                ready_count = sum(1 for cid in room_clients 
-                                if cid in player_states and player_states[cid]["ready"])
-                temp = []
-                if len(room_clients) > 0:
-                    for client in room_clients:
-                        d = player_states[client]
-                        new_dict = {k: v for k, v in d.items() if k != "room"}
-                        
-                        temp.append({
-                            "client_id": client,
-                            "client_info": new_dict
-                        })
-                
-                status_msg = {
-                    "message": 'room_query',
-                    "type": "room_status",
-                    "room": room_id,
-                    "ready_count": ready_count,
-                    "total_players": len(room_clients),
-                    "all_ready": ready_count == len(room_clients),
-                    "player_info": temp
-                }
-
-                await websocket.send_text(json.dumps(status_msg))
-                # await broadcast_room_status(room_id, 'Status Update')
+                await handle_status(client_id, websocket, client_ip, msg)           
                 
     except WebSocketDisconnect:
         print(f"🔌 {client_id} disconnected")
@@ -144,6 +116,37 @@ async def websocket_endpoint(websocket: WebSocket):
         print(f"WS Error {client_id}: {e}")
     finally:
         cleanup_client(client_id)
+
+async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+    room_id = player_states[client_id]["room"]
+    print(room_id)
+
+    room_clients = rooms.get(room_id, [])
+    ready_count = sum(1 for cid in room_clients 
+                    if cid in player_states and player_states[cid]["ready"])
+    temp = []
+    if len(room_clients) > 0:
+        for client in room_clients:
+            d = player_states[client]
+            new_dict = {k: v for k, v in d.items() if k != "room"}
+            
+            temp.append({
+                "client_id": client,
+                "client_info": new_dict
+            })
+    
+    status_msg = {
+        "message": 'room_query',
+        "type": "room_status",
+        "room": room_id,
+        "ready_count": ready_count,
+        "total_players": len(room_clients),
+        "all_ready": ready_count == len(room_clients),
+        "player_info": temp
+    }
+
+    await websocket.send_text(json.dumps(status_msg))
+    # await broadcast_room_status(room_id, 'Status Update')
 
 async def handle_ready_toggle(client_id: str, websocket: WebSocket, ready_state: bool):
     player_states[client_id]["ready"] = ready_state
