@@ -117,7 +117,7 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         cleanup_client(client_id)
 
-async def get_peers(client_id: str, ignore_keys = []):
+def get_peers(client_id: str, ignore_keys = list[str]):
     """returns the peers of the client ID"""
 
     print('Getting peers')
@@ -132,7 +132,6 @@ async def get_peers(client_id: str, ignore_keys = []):
     # ready_clients = [cid for cid in room_clients 
     #                 if cid in player_states and player_states[cid]["ready"]]
 
-    
     if len(room_clients) < 2:
         return []
     
@@ -150,9 +149,8 @@ async def get_peers(client_id: str, ignore_keys = []):
                 peer_info.pop(k,None)
 
             temp.update(peer_info)
-
             peers.append(temp)
-    
+
     return peers
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
@@ -167,7 +165,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
     ready_count = sum(1 for cid in room_clients 
                     if cid in player_states and player_states[cid]["ready"])
     
-    peers = await get_peers(client_id,["room"])
+    peers = get_peers(client_id,["room"])
     
     status_msg = {
         "message": 'room_query',
@@ -294,7 +292,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         })
 
     print('Broadcasting room status')
-    # peers = await get_peers(client_id,["room"])
+    peers = get_peers(client_id,["room"])
 
     status_msg = {
         "message": message,
@@ -303,7 +301,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        # "peers": peers
+        "peers": peers
     }
     
     for client_id in room_clients:
