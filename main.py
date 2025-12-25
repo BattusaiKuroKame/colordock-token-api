@@ -143,7 +143,11 @@ def get_peers(client_id: str, ignore_keys : list[str] = []):
                 temp = {
                     "id": other_id,
                 }
-                peer_info = player_states[other_id]
+                
+                if other_id in player_states:  # ✅ Safe check
+                    peer_info = player_states[other_id].copy()
+                else:
+                    continue
 
                 for k in ignore_keys:
                     peer_info.pop(k,None)
