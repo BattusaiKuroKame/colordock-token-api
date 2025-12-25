@@ -153,12 +153,14 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     """PHASE 1: Handle initial join (immediate ACK)"""
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
+    game_id = msg.get("game_id",'')
     
     # Store state
     player_states[client_id] = {
         "room": room_id,
         "ready": False,
-        "endpoint": endpoint
+        "endpoint": endpoint,
+        "game_id": game_id
     }
     
     # Add to room
@@ -191,7 +193,7 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
     # This will return None if the key is missing, avoiding a KeyError
 
     
-    # Add to room
+    # Remove from room
     if room_id not in rooms:
         print('No valid room found')
         await websocket.send_text(json.dumps({
