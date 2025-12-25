@@ -169,7 +169,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
     ready_count = sum(1 for cid in room_clients 
                     if cid in player_states and player_states[cid]["ready"])
     
-    # peers = get_peers(client_id,["room"])
+    peers = get_peers(client_id,["room"])
     
     status_msg = {
         "message": 'room_query',
@@ -178,7 +178,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        # "peers": peers
+        "peers": peers
     }
 
     await websocket.send_text(json.dumps(status_msg))
@@ -300,7 +300,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
 
     print('Broadcasting room status2')
 
-    # peers = get_peers(client_id,["room"])
+    peers = get_peers(client_id,["room"])
 
     status_msg = {
         "message": message,
@@ -309,7 +309,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        # "peers": peers
+        "peers": peers
     }
     
     for client_id in room_clients:
