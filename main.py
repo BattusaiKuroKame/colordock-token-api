@@ -117,8 +117,11 @@ async def websocket_endpoint(websocket: WebSocket):
     finally:
         cleanup_client(client_id)
 
-async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
-
+def get_peers(client_id: str):
+    """returns the peers of the client ID"""
+    if client_id not in player_states:
+        return []
+    
     room_id = player_states[client_id]["room"]
     
     ###########################
@@ -128,9 +131,9 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
 
     
     if len(room_clients) < 2:
-        return
+        return []
     
-    # Each player gets ALL other players' endpoints
+    # Each player gets ALL other players endpoints
     peers = []
     ignore_list = ["room"]
     for other_id in room_clients:
@@ -147,10 +150,17 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
             temp.update(peer_info)
 
             peers.append(temp)
-
-    #################################
     
-    print('Room status query for room:  ',room_id)
+    return peers
+
+async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
+
+    room_id = player_states[client_id]["room"]
+    
+    ###########################
+    room_clients = rooms.get(room_id, [])
+    # ready_clients = [cid for cid in room_clients 
+    #                 if cid in player_states and player_states[cid]["ready"]]
     
     ready_count = sum(1 for cid in room_clients 
                     if cid in player_states and player_states[cid]["ready"])
@@ -162,7 +172,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        "peers": peers
+        "peers": get_peers(client_id)
     }
 
     await websocket.send_text(json.dumps(status_msg))
@@ -286,7 +296,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         "ready_count": ready_count,
         "total_players": len(room_clients),
         "all_ready": ready_count == len(room_clients),
-        "player_info": temp
+        "peers": get_peers(client_id)
     }
     
     for client_id in room_clients:
