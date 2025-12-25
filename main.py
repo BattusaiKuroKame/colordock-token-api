@@ -119,46 +119,46 @@ async def websocket_endpoint(websocket: WebSocket):
 
 def get_peers(client_id: str, ignore_keys : list[str]):
     """returns the peers of the client ID"""
-    if not ignore_keys:
-        ignore_keys =[]
+    try:
+        if not ignore_keys:
+            ignore_keys =[]
 
-    return [{"endpoint":"RETURN 1"}]
-    print('Getting peers')
+        # return [{"endpoint":"RETURN 1"}]
+        print('Getting peers')
 
-    if client_id not in player_states:
-        return []
+        if client_id not in player_states:
+            return []
+        
+        room_id = player_states[client_id]["room"]
+        room_clients = rooms.get(room_id, [])
+
+        if len(room_clients) < 2:
+            return []
+        
+        # Each player gets ALL other players endpoints
+        peers = []
+        for other_id in room_clients:
+            if other_id != client_id:
+
+                temp = {
+                    "id": other_id,
+                }
+
+                if other_id not in player_states:  # ✅ Early continue
+                    continue
+
+                peer_info = player_states[other_id].copy()
+
+                for k in ignore_keys:
+                    peer_info.pop(k,None)
+
+                temp.update(peer_info)
+                peers.append(temp)
+
+        return peers
     
-    room_id = player_states[client_id]["room"]
-    
-    ###########################
-    room_clients = rooms.get(room_id, [])
-    # ready_clients = [cid for cid in room_clients 
-    #                 if cid in player_states and player_states[cid]["ready"]]
-
-    if len(room_clients) < 2:
-        return []
-    
-    # Each player gets ALL other players endpoints
-    peers = []
-    for other_id in room_clients:
-        if other_id != client_id:
-
-            temp = {
-                "id": other_id,
-            }
-
-            if other_id not in player_states:  # ✅ Early continue
-                continue
-
-            peer_info = player_states[other_id].copy()
-
-            for k in ignore_keys:
-                peer_info.pop(k,None)
-
-            temp.update(peer_info)
-            peers.append(temp)
-
-    return peers
+    except Exception as e:
+        return e
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
