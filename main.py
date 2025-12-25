@@ -286,33 +286,33 @@ async def broadcast_room_status(room_id: str, message: str = ''):
     ready_count = sum(1 for cid in room_clients 
                      if cid in player_states and player_states[cid]["ready"])
     
-    temp = []
-    for client in room_clients:
-        d = player_states[client]
-        new_dict = {k: v for k, v in d.items() if k != "room"}
+    # temp = []
+    # for client in room_clients:
+    #     d = player_states[client]
+    #     new_dict = {k: v for k, v in d.items() if k != "room"}
 
-        temp.append({
-            "client_id": client,
-            "client_info": new_dict
-        })
+    #     temp.append({
+    #         "client_id": client,
+    #         "client_info": new_dict
+    #     })
 
     print('Broadcasting room status2')
-
-    peers = get_peers(client_id,["room"])
-
-    status_msg = {
-        "message": message,
-        "type": "room_status",
-        "room": room_id,
-        "ready_count": ready_count,
-        "total_players": len(room_clients),
-        "all_ready": ready_count == len(room_clients),
-        "peers": peers
-    }
-    
+ 
     for client_id in room_clients:
         if client_id in connected_clients:
             try:
+
+                peers = get_peers(client_id,["room"])
+
+                status_msg = {
+                    "message": message,
+                    "type": "room_status",
+                    "room": room_id,
+                    "ready_count": ready_count,
+                    "total_players": len(room_clients),
+                    "all_ready": ready_count == len(room_clients),
+                    "peers": peers
+                }
                 await connected_clients[client_id].send_text(json.dumps(status_msg))
             except:
                 pass
