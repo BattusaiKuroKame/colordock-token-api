@@ -31,7 +31,7 @@ app.add_middleware(
 # === STATE MANAGEMENT ===
 connected_clients: Dict[str, WebSocket] = {}
 rooms: Dict[str, List[str]] = {}  # room_id -> list of client_ids
-player_states: Dict[str, Dict] = {}  # client_id -> {"room": str, "ready": bool, "endpoint": str}
+player_states: Dict[str, Dict] = {}  # client_id -> {"room": str, "ready": bool, "endpoint": str, "game_id": str}
 
 # === EXISTING AUTH ENDPOINTS ===
 @app.post("/login", response_model=LoginResponse)
@@ -290,12 +290,21 @@ async def punch_all_players(room_id: str):
     # Each player gets ALL other players' endpoints
     for client_id in ready_clients:
         peers = []
+        ignore_list = ["room","ready"]
         for other_id in ready_clients:
             if other_id != client_id:
-                peers.append({
+                
+                temp = {
                     "id": other_id,
-                    "endpoint": player_states[other_id]["endpoint"]
-                })
+                }
+                peer_info = player_states[other_id]
+
+                for k in ignore_list:
+                    peer_info.pop(k,None)
+
+                temp.update(peer_info)
+
+                peers.append(temp)
         
         try:
             await connected_clients[client_id].send_text(json.dumps({
