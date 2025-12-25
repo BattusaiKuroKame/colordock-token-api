@@ -213,13 +213,19 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     game_id = msg.get("game_id",'')
+
+    room_id = player_states[client_id]['room']
+    room_clients = rooms.get(room_id, [])
+
+    ready_count = sum(1 for cid in room_clients 
+                    if cid in player_states and player_states[cid]["ready"])
     
     # Store state
     player_states[client_id] = {
         "room": room_id,
         "ready": False,
         "endpoint": endpoint,
-        "game_id": game_id
+        "game_id": game_id,
     }
     
     # Add to room
@@ -234,6 +240,7 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
         "ip": client_ip,
         "room": room_id,
         "players_needed": "minimum 2",  # Configurable
+        "ready_count": ready_count,
         "current_players": len(rooms[room_id])
     }))
     
