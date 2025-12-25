@@ -204,7 +204,7 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     #     for d in player_states.values()
     #     if "endpoint" in d
     # ]
-
+    await websocket.send_text('JOIN enter')
     # ip_list = [ en.split(':')[0] for en in endpoint_list]
 
     # if client_ip in ip_list:
@@ -214,7 +214,6 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     game_id = msg.get("game_id",'')
 
-    room_id = player_states[client_id]['room']
     room_clients = rooms.get(room_id, [])
 
     ready_count = sum(1 for cid in room_clients 
