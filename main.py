@@ -150,9 +150,8 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
 
     #################################
     
-    print(room_id)
-
-    room_clients = rooms.get(room_id, [])
+    print('Room status query for room:  ',room_id)
+    
     ready_count = sum(1 for cid in room_clients 
                     if cid in player_states and player_states[cid]["ready"])
     
