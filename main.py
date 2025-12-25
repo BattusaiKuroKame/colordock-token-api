@@ -122,6 +122,7 @@ def get_peers(client_id: str, ignore_keys : list[str]):
     if not ignore_keys:
         ignore_keys =[]
 
+    return [{"endpoint":"RETURN 1"}]
     print('Getting peers')
 
     if client_id not in player_states:
