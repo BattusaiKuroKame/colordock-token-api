@@ -119,39 +119,43 @@ async def websocket_endpoint(websocket: WebSocket):
 
 def get_peers(client_id: str, ignore_keys = list[str]):
     """returns the peers of the client ID"""
+    try:
+        print('Getting peers')
 
-    print('Getting peers')
+        if client_id not in player_states:
+            return []
+        
+        room_id = player_states[client_id]["room"]
+        
+        ###########################
+        room_clients = rooms.get(room_id, [])
+        # ready_clients = [cid for cid in room_clients 
+        #                 if cid in player_states and player_states[cid]["ready"]]
 
-    if client_id not in player_states:
+        if len(room_clients) < 2:
+            return []
+        
+        # Each player gets ALL other players endpoints
+        peers = []
+        for other_id in room_clients:
+            if other_id != client_id:
+
+                temp = {
+                    "id": other_id,
+                }
+                peer_info = player_states[other_id]
+
+                for k in ignore_keys:
+                    peer_info.pop(k,None)
+
+                temp.update(peer_info)
+                peers.append(temp)
+
+        return peers
+    except Exception as e:
         return []
-    
-    room_id = player_states[client_id]["room"]
-    
-    ###########################
-    room_clients = rooms.get(room_id, [])
-    # ready_clients = [cid for cid in room_clients 
-    #                 if cid in player_states and player_states[cid]["ready"]]
-
-    if len(room_clients) < 2:
-        return []
-    
-    # Each player gets ALL other players endpoints
-    peers = []
-    for other_id in room_clients:
-        if other_id != client_id:
-
-            temp = {
-                "id": other_id,
-            }
-            peer_info = player_states[other_id]
-
-            for k in ignore_keys:
-                peer_info.pop(k,None)
-
-            temp.update(peer_info)
-            peers.append(temp)
-
-    return peers
+    finally:
+        print('[ERROR in get_peers]: ',e)
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
@@ -260,6 +264,9 @@ async def handle_remove(client_id: str, websocket: WebSocket, client_ip: str, ms
 
 async def check_room_ready(room_id: str):
     """Check if room ready → PHASE 3 PUNCHNOW!"""
+
+    print('Broadcasting room status 1')
+
     room_clients = rooms.get(room_id, [])
     if len(room_clients) < 2:
         await broadcast_room_status(room_id,'Ready Check')
@@ -291,7 +298,8 @@ async def broadcast_room_status(room_id: str, message: str = ''):
             "client_info": new_dict
         })
 
-    print('Broadcasting room status')
+    print('Broadcasting room status2')
+    
     peers = get_peers(client_id,["room"])
 
     status_msg = {
