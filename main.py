@@ -269,8 +269,9 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
         if room_id not in rooms:
             print('No valid room found')
             await websocket.send_text(json.dumps({
-                "type": "quit",
-                "status": 'Failed'
+                "type": "quit request",
+                "status": 'denied',
+                "error": "No such room found"
             }))
             return
         
@@ -290,7 +291,8 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
         # await notify_player_joined(room_id, client_id)
         await broadcast_room_status(room_id, f'Player quit: {client_id}')
     
-        print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+        # print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+
     except Exception as e:
         await websocket.send_text(json.dumps({
             "type": "quit request",
