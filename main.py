@@ -97,7 +97,6 @@ async def websocket_endpoint(websocket: WebSocket):
             print(data)
             
             if msg.get("type") == "join":
-
                 # Change temporary client ID to user provided game ID for atomicity of user
                 game_id = msg.get("game_id",client_id)
                 connected_clients[game_id] = websocket
@@ -204,8 +203,8 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     # check if player already in the room with IP
     room_id = msg.get("room", "default")
 
-    if client_id in rooms.get(room_id,[]):
-        pass
+    if client_id in rooms.get(room_id,[]): # already in the lobby
+        rooms[room_id].pop(client_id,None)
 
 
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
@@ -332,7 +331,6 @@ async def broadcast_room_status(room_id: str, message: str = ''):
             try:
                 temp = {"peers": get_peers(client_id, room_id,["room"])}
                 temp.update(status_msg)
-
                 await connected_clients[client_id].send_text(json.dumps(temp))
             except:
                 await connected_clients[client_id].send_text(json.dumps(status_msg))
