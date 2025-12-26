@@ -223,9 +223,6 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     game_id = msg.get("game_id",'')
 
     # room_clients = rooms.get(room_id, [])
-
-    # ready_count = sum(1 for cid in room_clients 
-    #                 if cid in player_states and player_states[cid]["ready"])
     
     # Store state
     player_states[client_id] = {
@@ -325,10 +322,7 @@ async def check_room_ready(room_id: str):
 async def broadcast_room_status(room_id: str, message: str = ''):
     """Broadcast status to entire room"""
     room_clients = rooms.get(room_id, [])
-    ready_count = sum(
-        1 for cid in room_clients
-        if player_states.get(cid, {}).get("ready") == 'ready'
-    )
+    ready_count = get_ready_count(room_id)
  
     for client_id in room_clients:
         if client_id in connected_clients:
