@@ -167,7 +167,7 @@ def get_ready_count(room_id: str):
     room_clients = rooms.get(room_id, [])
     return sum(
         1 for cid in room_clients
-        if player_states.get(cid, {}).get("ready") == 'ready'
+        if player_states.get(cid, {}).get("ready")
     )
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
