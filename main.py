@@ -162,18 +162,26 @@ def get_peers(client_id: str,room_id: str, ignore_keys : list[str] = []):
         return peers
     except Exception as e:
         return e
+    
+def get_ready_count(room_id: str):
+    room_clients = rooms.get(room_id, [])
+    return sum(
+        1 for cid in room_clients
+        if player_states.get(cid, {}).get("ready") == 'ready'
+    )
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
     room_id = player_states[client_id]["room"]
     
     ###########################
-    room_clients = rooms.get(room_id, [])
+    room_clients = get_ready_count(room_id)
     # ready_clients = [cid for cid in room_clients 
     #                 if cid in player_states and player_states[cid]["ready"]]
+
+
     
-    ready_count = sum(1 for cid in room_clients 
-                    if cid in player_states and player_states[cid]["ready"])
+    ready_count = get_ready_count(room_id)
     
     peers = get_peers(client_id, room_id, ["room"])
     
@@ -277,9 +285,6 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
         
         # clean memory
         cleanup_client(client_id)
-        # player_states.pop(client_id, None)
-        # connected_clients.pop(client_id,None)
-        # rooms[room_id].remove(client_id)
         
         # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
         await websocket.send_text(json.dumps({
@@ -290,8 +295,6 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
         # Notify others + broadcast status
         # await notify_player_joined(room_id, client_id)
         await broadcast_room_status(room_id, f'Player quit: {client_id}')
-    
-        # print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
 
     except Exception as e:
         await websocket.send_text(json.dumps({
@@ -310,8 +313,7 @@ async def check_room_ready(room_id: str):
         await broadcast_room_status(room_id,'Ready Check')
         return
         
-    ready_count = sum(1 for cid in room_clients 
-                     if cid in player_states and player_states[cid]["ready"])
+    ready_count = get_ready_count(room_id)
     
     await broadcast_room_status(room_id,'Ready Check')
     
@@ -460,8 +462,7 @@ async def list_rooms():
     """Debug: Room status"""
     room_status = {}
     for room_id, clients in rooms.items():
-        ready_count = sum(1 for cid in clients 
-                         if cid in player_states and player_states[cid]["ready"])
+        ready_count = get_ready_count(room_id)
         room_status[room_id] = {
             "players": len(clients),
             "ready": ready_count,
