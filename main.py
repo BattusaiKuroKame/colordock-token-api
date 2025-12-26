@@ -251,6 +251,12 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
 
 async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
+    
+    await websocket.send_text(json.dumps({
+        "type": "quit",
+        "status": 'request processing...'
+    }))
+
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     
