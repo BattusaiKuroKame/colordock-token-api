@@ -151,7 +151,7 @@ def get_peers(client_id: str,room_id: str, ignore_keys : list[str] = []):
                     "id": other_id,
                 }
 
-                peer_info = player_states[other_id].copy()
+                peer_info = player_states.get(other_id,{}).copy()
 
                 for k in ignore_keys:
                     peer_info.pop(k,None)
@@ -167,17 +167,15 @@ def get_ready_count(room_id: str):
     room_clients = rooms.get(room_id, [])
     return sum(
         1 for cid in room_clients
-        if player_states.get(cid, {}).get("ready")
+        if player_states.get(cid, {}).get("ready",False)
     )
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
-    room_id = player_states[client_id]["room"]
+    room_id = player_states.get(client_id,{}).get("room",'')
     
     ###########################
-    room_clients = get_ready_count(room_id)
-    # ready_clients = [cid for cid in room_clients 
-    #                 if cid in player_states and player_states[cid]["ready"]]
+    room_clients = rooms.get(room_id,[])
     ready_count = get_ready_count(room_id)
     
     peers = get_peers(client_id, room_id, ["room"])
@@ -198,7 +196,7 @@ async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, ms
 async def handle_ready_toggle(client_id: str, websocket: WebSocket, ready_state: bool):
     player_states[client_id]["ready"] = ready_state
     await websocket.send_text(json.dumps({"type": "state_ack", "ready": ready_state}))
-    await check_room_ready(player_states[client_id]["room"])
+    await check_room_ready(player_states.get(client_id,{}).get("room",''))
 
 async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
@@ -218,8 +216,6 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
     room_id = msg.get("room", "default")
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     game_id = msg.get("game_id",'')
-
-    # room_clients = rooms.get(room_id, [])
     
     # Store state
     player_states[client_id] = {
@@ -242,14 +238,14 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
         "room": room_id,
         "players_needed": "minimum 2",  # Configurable
         # "ready_count": ready_count,
-        "current_players": len(rooms[room_id])
+        "current_players": len(rooms.get(room_id,[]))
     }))
     
     # Notify others + broadcast status
     await notify_player_joined(room_id, client_id)
     await broadcast_room_status(room_id, f'New player joined: {client_id}')
     
-    print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+    print(f"✅ {client_id} joined {room_id} ({len(rooms.get(room_id,[]))} players)")
 
 async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
@@ -354,7 +350,7 @@ async def punch_all_players(room_id: str):
     """PHASE 3: Send PUNCHNOW to ALL ready players"""
     room_clients = rooms.get(room_id, [])
     ready_clients = [cid for cid in room_clients 
-                    if cid in player_states and player_states[cid]["ready"]]
+                    if cid in player_states and player_states.get(cid,{}).get("ready",False)]
     
     if len(ready_clients) < 2:
         return
@@ -371,7 +367,7 @@ async def punch_all_players(room_id: str):
                 temp = {
                     "id": other_id,
                 }
-                peer_info = player_states[other_id]
+                peer_info = player_states.get(other_id,{})
 
                 for k in ignore_list:
                     peer_info.pop(k,None)
@@ -400,7 +396,7 @@ async def notify_player_joined(room_id: str, new_client_id: str):
         "type": "player_joined",
         "player": {
             "id": new_client_id,
-            "endpoint": player_states[new_client_id]["endpoint"],
+            "endpoint": player_states.get(new_client_id,{}).get("endpoint",''),
             "joined_at": int(time.time())
         },
         "room": room_id
@@ -419,8 +415,8 @@ async def notify_player_joined(room_id: str, new_client_id: str):
         if existing_id != new_client_id and existing_id in player_states:
             existing_players.append({
                 "id": existing_id,
-                "endpoint": player_states[existing_id]["endpoint"],
-                "ready": player_states[existing_id]["ready"]
+                "endpoint": player_states.get(existing_id,{}).get("endpoint",''),
+                "ready": player_states.get(existing_id,{}).get("ready",False)
             })
     
     welcome_msg = {
