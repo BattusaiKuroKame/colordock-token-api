@@ -275,16 +275,17 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
             return
         
         # clean memory
-        player_states.pop(client_id, None)
-        connected_clients.pop(client_id,None)
-        rooms[room_id].remove(client_id)
+        cleanup_client(client_id)
+        # player_states.pop(client_id, None)
+        # connected_clients.pop(client_id,None)
+        # rooms[room_id].remove(client_id)
         
         # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
         await websocket.send_text(json.dumps({
             "type": "quit request",
             "status": 'granted'
         }))
-        
+
         # Notify others + broadcast status
         # await notify_player_joined(room_id, client_id)
         await broadcast_room_status(room_id, f'Player quit: {client_id}')
