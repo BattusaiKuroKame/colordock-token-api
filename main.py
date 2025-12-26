@@ -321,8 +321,10 @@ async def check_room_ready(room_id: str):
 async def broadcast_room_status(room_id: str, message: str = ''):
     """Broadcast status to entire room"""
     room_clients = rooms.get(room_id, [])
-    ready_count = sum(1 for cid in room_clients 
-                     if cid in player_states and player_states[cid]["ready"])
+    ready_count = sum(
+        1 for cid in room_clients
+        if player_states.get(cid, {}).get("ready")
+    )
  
     for client_id in room_clients:
         if client_id in connected_clients:
@@ -339,7 +341,15 @@ async def broadcast_room_status(room_id: str, message: str = ''):
                 }
                 await connected_clients[client_id].send_text(json.dumps(status_msg))
             except:
-                pass
+                await connected_clients[client_id].send_text(json.dumps({
+                    "message": message,
+                    "type": "room_status",
+                    "room": room_id,
+                    "ready_count": ready_count,
+                    "total_players": len(room_clients),
+                    "all_ready": ready_count == len(room_clients),
+                    "peers": "ERROR"
+                }))
 
 async def punch_all_players(room_id: str):
     """PHASE 3: Send PUNCHNOW to ALL ready players"""
