@@ -290,6 +290,9 @@ async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg:
 async def check_room_ready(room_id: str):
     """Check if room ready → PHASE 3 PUNCHNOW!"""
 
+    if room_id not in rooms:
+        return
+
     print('Broadcasting room status 1')
 
     room_clients = rooms.get(room_id, [])
