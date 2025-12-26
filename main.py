@@ -172,7 +172,7 @@ def get_ready_count(room_id: str):
 
 async def handle_status(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
 
-    room_id = player_states.get(client_id,{}).get("room",'')
+    room_id = msg.get("room",'error')#player_states.get(client_id,{}).get("room",'')
     
     ###########################
     room_clients = rooms.get(room_id,[])
@@ -313,7 +313,7 @@ async def broadcast_room_status(room_id: str, message: str = ''):
     """Broadcast status to entire room"""
     room_clients = rooms.get(room_id, [])
 
-    if not room_clients:
+    if room_clients == []:
         return
 
     ready_count = get_ready_count(room_id)
@@ -341,7 +341,7 @@ async def punch_all_players(room_id: str):
     """PHASE 3: Send PUNCHNOW to ALL ready players"""
     room_clients = rooms.get(room_id, [])
     ready_clients = [cid for cid in room_clients 
-                    if cid in player_states and player_states.get(cid,{}).get("ready",False)]
+                    if player_states.get(cid,{}).get("ready",False)]
     
     if len(ready_clients) < 2:
         return
@@ -350,23 +350,11 @@ async def punch_all_players(room_id: str):
     
     # Each player gets ALL other players' endpoints
     for client_id in ready_clients:
-        peers = []
-        ignore_list = ["room","ready"]
-        for other_id in ready_clients:
-            if other_id != client_id:
-
-                temp = {
-                    "id": other_id,
-                }
-                peer_info = player_states.get(other_id,{})
-
-                for k in ignore_list:
-                    peer_info.pop(k,None)
-
-                temp.update(peer_info)
-
-                peers.append(temp)
         
+        ignore_list = ["room","ready"]
+        
+        peers = get_peers(client_id, room_id,ignore_list)
+
         try:
             await connected_clients[client_id].send_text(json.dumps({
                 "type": "PUNCHNOW",
