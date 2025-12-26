@@ -201,19 +201,13 @@ async def handle_ready_toggle(client_id: str, websocket: WebSocket, ready_state:
 async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
 
-    # # check if player already in the room with IP
-    # endpoint_list = [
-    #     d["endpoint"]
-    #     for d in player_states.values()
-    #     if "endpoint" in d
-    # ]
-    # await websocket.send_text('JOIN enter')
-    # ip_list = [ en.split(':')[0] for en in endpoint_list]
-
-    # if client_ip in ip_list:
-    #     pass
-
+    # check if player already in the room with IP
     room_id = msg.get("room", "default")
+
+    if client_id in rooms.get(room_id,[]):
+        pass
+
+
     endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
     game_id = msg.get("game_id",'')
     
@@ -320,31 +314,25 @@ async def broadcast_room_status(room_id: str, message: str = ''):
         return
 
     ready_count = get_ready_count(room_id)
+
+    status_msg = {
+        "message": message,
+        "type": "room_status",
+        "room": room_id,
+        "ready_count": ready_count,
+        "total_players": len(room_clients),
+        "all_ready": ready_count == len(room_clients),
+    }
  
     for client_id in room_clients:
         if client_id in connected_clients:
             try:
-                peers = get_peers(client_id, room_id,["room"])
-                status_msg = {
-                    "message": message,
-                    "type": "room_status",
-                    "room": room_id,
-                    "ready_count": ready_count,
-                    "total_players": len(room_clients),
-                    "all_ready": ready_count == len(room_clients),
-                    "peers": peers
-                }
-                await connected_clients[client_id].send_text(json.dumps(status_msg))
+                temp = {"peers": get_peers(client_id, room_id,["room"])}
+                temp.update(status_msg)
+
+                await connected_clients[client_id].send_text(json.dumps(temp))
             except:
-                await connected_clients[client_id].send_text(json.dumps({
-                    "message": message,
-                    "type": "room_status",
-                    "room": room_id,
-                    "ready_count": ready_count,
-                    "total_players": len(room_clients),
-                    "all_ready": ready_count == len(room_clients),
-                    "peers": "ERROR"
-                }))
+                await connected_clients[client_id].send_text(json.dumps(status_msg))
 
 async def punch_all_players(room_id: str):
     """PHASE 3: Send PUNCHNOW to ALL ready players"""
@@ -442,7 +430,8 @@ def cleanup_client(client_id: str):
     for room_id, client_ids in list(rooms.items()):
         if client_id in client_ids:
             client_ids.remove(client_id)
-            if not client_ids:
+
+            if len(rooms.get(room_id,[])) == 0:
                 del rooms[room_id]
             else:
                 # Recheck room readiness
