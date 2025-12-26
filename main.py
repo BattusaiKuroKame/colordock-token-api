@@ -251,44 +251,51 @@ async def handle_join(client_id: str, websocket: WebSocket, client_ip: str, msg:
 
 async def handle_quit(client_id: str, websocket: WebSocket, client_ip: str, msg: dict):
     """PHASE 1: Handle initial join (immediate ACK)"""
-    
-    await websocket.send_text(json.dumps({
-        "type": "quit",
-        "status": 'request processing...'
-    }))
 
-    room_id = msg.get("room", "default")
-    endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
-    
-    # Remove client from State logs
-    # This will return None if the key is missing, avoiding a KeyError
-
-    
-    # Remove from room
-    if room_id not in rooms:
-        print('No valid room found')
+    try:
         await websocket.send_text(json.dumps({
-            "type": "quit",
-            "status": 'Failed'
+            "type": "quit request",
+            "status": 'processing'
         }))
-        return
+
+        room_id = msg.get("room", "default")
+        endpoint = f"{client_ip}:{msg.get('local_port', 54500)}"
+        
+        # Remove client from State logs
+        # This will return None if the key is missing, avoiding a KeyError
+
+        
+        # Remove from room
+        if room_id not in rooms:
+            print('No valid room found')
+            await websocket.send_text(json.dumps({
+                "type": "quit",
+                "status": 'Failed'
+            }))
+            return
+        
+        # clean memory
+        player_states.pop(client_id, None)
+        connected_clients.pop(client_id,None)
+        rooms[room_id].remove(client_id)
+        
+        # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
+        await websocket.send_text(json.dumps({
+            "type": "quit request",
+            "status": 'granted'
+        }))
+        
+        # Notify others + broadcast status
+        # await notify_player_joined(room_id, client_id)
+        await broadcast_room_status(room_id, f'Player quit: {client_id}')
     
-    # clean memory
-    player_states.pop(client_id, None)
-    connected_clients.pop(client_id,None)
-    rooms[room_id].remove(client_id)
-    
-    # 🔥 IMMEDIATE JOIN ACK (Phase 1 complete!)
-    await websocket.send_text(json.dumps({
-        "type": "quit",
-        "status": 'granted'
-    }))
-    
-    # Notify others + broadcast status
-    # await notify_player_joined(room_id, client_id)
-    await broadcast_room_status(room_id, f'Player quit: {client_id}')
-    
-    print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+        print(f"✅ {client_id} joined {room_id} ({len(rooms[room_id])} players)")
+    except Exception as e:
+        await websocket.send_text(json.dumps({
+            "type": "quit request",
+            "status": 'denied',
+            "error": e
+        }))
 
 async def check_room_ready(room_id: str):
     """Check if room ready → PHASE 3 PUNCHNOW!"""
