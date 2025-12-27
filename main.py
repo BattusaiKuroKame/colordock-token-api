@@ -15,6 +15,11 @@ from pydantic import BaseModel
 from typing import Dict, List, Optional
 import json
 from datetime import datetime, timedelta
+import uvicorn
+import logging
+
+logger = logging.getLogger("uvicorn")
+logger.info("Hello from FastAPI")
 
 TOKEN_EXPIRY = int(os.getenv("TOKEN_EXPIRY", "900"))
 
@@ -349,7 +354,7 @@ async def punch_all_players(room_id: str):
     # Each player gets ALL other players' endpoints
     for client_id in ready_clients:
         
-        ignore_list = ["room","ready"]
+        ignore_list = ["room"]
         
         peers = get_peers(client_id, room_id,ignore_list)
 
@@ -466,6 +471,6 @@ async def test_page():
     return HTMLResponse(html)
 
 if __name__ == "__main__":
-    import uvicorn
+    
     port = int(os.environ.get("PORT", 8000))
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
