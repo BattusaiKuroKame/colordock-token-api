@@ -113,7 +113,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({
                     "type": "pong",
-                    "message": str(datetime.now())
+                    "message": datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
                 }))
 
             elif msg.get("type") == "quit":
