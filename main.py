@@ -14,7 +14,7 @@ from storage import issue_token_for_user
 from pydantic import BaseModel
 from typing import Dict, List, Optional
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timezone
 import uvicorn
 import logging
 
@@ -113,7 +113,7 @@ async def websocket_endpoint(websocket: WebSocket):
             elif msg.get("type") == "ping":
                 await websocket.send_text(json.dumps({
                     "type": "pong",
-                    "message": datetime.now().strftime("%d/%m/%Y, %H:%M:%S")
+                    "message": datetime.now(tz=timezone.utc).strftime("%d/%m/%Y, %H:%M:%S UTC")
                 }))
 
             elif msg.get("type") == "quit":
