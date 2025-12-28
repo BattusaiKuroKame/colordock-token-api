@@ -111,7 +111,10 @@ async def websocket_endpoint(websocket: WebSocket):
                 await handle_join(client_id, websocket, client_ip, msg)
                 
             elif msg.get("type") == "ping":
-                await websocket.send_text(json.dumps({"type": "pong"}))
+                await websocket.send_text(json.dumps({
+                    "type": "pong",
+                    "message": datetime.now()
+                }))
 
             elif msg.get("type") == "quit":
                 await handle_quit(client_id, websocket, client_ip, msg)
